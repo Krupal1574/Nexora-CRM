@@ -1,0 +1,198 @@
+diff --git a/prisma/schema.prisma b/prisma/schema.prisma
+index ea4d2ce..5879993 100644
+--- a/prisma/schema.prisma
++++ b/prisma/schema.prisma
+@@ -64,6 +64,9 @@ model User {
+   candidateProfile    CandidateProfile?
+   resume              Resume?
+   pendingEmailChanges PendingEmailChange[]
++  organizationMemberships OrganizationMembership[]
++  crmExternalProfilesCreated ExternalProfile[] @relation("ExternalProfileCreatedBy")
++  crmAuditEvents           CrmAuditEvent[]    @relation("CrmAuditActor")
+ 
+   createdAt     DateTime  @default(now())
+   updatedAt     DateTime  @updatedAt
+@@ -71,6 +74,176 @@ model User {
+   @@index([email])
+ }
+ 
++// ---------------------------------------------------------------------------
++// CRM Phase A — platform tenancy and module boundaries
++//
++// The legacy User.role remains a site-administration concern. CRM access is
++// granted only through an active OrganizationMembership so a site ADMIN does
++// not accidentally receive access to every customer's CRM data.
++// ---------------------------------------------------------------------------
++enum OrganizationMembershipRole {
++  OWNER
++  ADMIN
++  MANAGER
++  MEMBER
++  VIEWER
++}
++
++enum OrganizationMembershipStatus {
++  ACTIVE
++  INVITED
++  SUSPENDED
++  REMOVED
++}
++
++enum CrmExternalRecordType {
++  LEAD
++  CONTACT
++  COMPANY
++}
++
++enum ExternalProfileProvider {
++  LINKEDIN_PERSON
++  LINKEDIN_COMPANY
++  GITHUB
++  WEBSITE
++  PORTFOLIO
++  X
++  OTHER
++}
++
++enum ExternalProfileConnectionStatus {
++  URL_ONLY
++  CONNECTED
++  PREVIEW_AVAILABLE
++  AUTH_REQUIRED
++  PROVIDER_UNAVAILABLE
++  ERROR
++}
++
++enum CrmAuditAction {
++  CREATED
++  UPDATED
++  DELETED
++  LINKED
++  UNLINKED
++  EXPORTED
++  PERMISSION_CHANGED
++}
++
++enum CrmOutboxStatus {
++  PENDING
++  PROCESSING
++  DELIVERED
++  FAILED
++}
++
++model Organization {
++  id              String                   @id @default(cuid())
++  name            String
++  slug            String                   @unique
++  timezone        String                   @default("UTC")
++  locale          String                   @default("en")
++  defaultCurrency String                   @default("USD") @db.VarChar(3)
++  memberships     OrganizationMembership[]
++  externalProfiles ExternalProfile[]
++  crmAuditEvents  CrmAuditEvent[]
++  crmOutboxEvents CrmOutboxEvent[]
++  createdAt       DateTime                 @default(now())
++  updatedAt       DateTime                 @updatedAt
++}
++
++model OrganizationMembership {
++  id                String                       @id @default(cuid())
++  organizationId    String
++  userId            String
++  role              OrganizationMembershipRole   @default(MEMBER)
++  status            OrganizationMembershipStatus @default(INVITED)
++  // Deliberately an allow-list of permission identifiers, not an arbitrary
++  // policy document. Role grants and these explicit grants are combined on
++  // the server; a later Phase may add explicit denials if product needs them.
++  permissionGrants  Json                         @default("[]") @db.JsonB
++  organization      Organization                 @relation(fields: [organizationId], references: [id], onDelete: Cascade)
++  user              User                         @relation(fields: [userId], references: [id], onDelete: Cascade)
++  createdAt         DateTime                     @default(now())
++  updatedAt         DateTime                     @updatedAt
++
++  @@unique([organizationId, userId])
++  @@index([userId, status])
++  @@index([organizationId, status, role])
++}
++
++// URL-only link storage is intentionally provider-neutral. It must never be
++// treated as authority to fetch a profile. Lead, Contact and Company tables
++// are introduced in later CRM phases; until then recordId is an opaque value
++// validated by the CRM service before every read or write.
++model ExternalProfile {
++  id               String                          @id @default(cuid())
++  organizationId   String
++  recordType       CrmExternalRecordType
++  recordId         String
++  provider         ExternalProfileProvider
++  profileUrl       String                          @db.Text
++  normalizedUrl    String                          @db.Text
++  connectionStatus ExternalProfileConnectionStatus @default(URL_ONLY)
++  verificationStatus String                        @default("UNVERIFIED")
++  externalProviderId String?
++  createdByUserId  String
++  createdBy        User                            @relation("ExternalProfileCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
++  organization     Organization                    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
++  createdAt        DateTime                        @default(now())
++  updatedAt        DateTime                        @updatedAt
++
++  @@unique([organizationId, recordType, recordId, normalizedUrl])
++  @@index([organizationId, recordType, recordId])
++  @@index([organizationId, provider, connectionStatus])
++}
++
++// Append-only business audit log. The current AdminAuditLog is site-admin
++// specific and lacks organization scope, so it is not reused for CRM data.
++model CrmAuditEvent {
++  id             String         @id @default(cuid())
++  organizationId String
++  actorUserId    String?
++  action         CrmAuditAction
++  resourceType   String
++  resourceId     String
++  metadata       Json?          @db.JsonB
++  occurredAt     DateTime       @default(now())
++  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
++  actor          User?          @relation("CrmAuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
++
++  @@index([organizationId, resourceType, resourceId, occurredAt])
++  @@index([organizationId, occurredAt])
++}
++
++// Transactional-outbox rows are written in the same transaction as a CRM
++// state change. A worker is deliberately deferred until the shared workflow
++// platform exists; the contract is fixed in Phase A to avoid a second event
++// architecture later.
++model CrmOutboxEvent {
++  id             String          @id @default(cuid())
++  organizationId String
++  eventName      String
++  eventVersion   Int             @default(1)
++  aggregateType  String
++  aggregateId    String
++  idempotencyKey String
++  payload        Json            @db.JsonB
++  status         CrmOutboxStatus @default(PENDING)
++  attempts       Int             @default(0)
++  availableAt    DateTime        @default(now())
++  deliveredAt    DateTime?
++  lastErrorCode  String?
++  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
++  createdAt      DateTime        @default(now())
++  updatedAt      DateTime        @updatedAt
++
++  @@unique([organizationId, idempotencyKey])
++  @@index([status, availableAt])
++  @@index([organizationId, aggregateType, aggregateId])
++}
++
+ model Account {
+   id                String  @id @default(cuid())
+   userId            String
+@@ -559,4 +732,4 @@ model RateLimit {
+ 
+   @@unique([identifier, action])
+   @@index([identifier])
+-}
+\ No newline at end of file
++}
