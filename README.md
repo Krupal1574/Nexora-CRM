@@ -5,7 +5,8 @@ Standalone CRM application workspace. It intentionally does not modify the publi
 ## Current state
 
 - Phase A tenancy, permission, audit/outbox, and URL-only profile-link foundations are present.
-- The Phase B leads workspace is a truthful setup state; it contains no sample customer data and does not create records before the CRM database is migrated.
+- The leads workspace and dashboard are truthful setup states; they contain no sample customer data and do not create records before the CRM database is migrated.
+- `GET /api/crm/status` exposes only non-sensitive service readiness information.
 - The CRM is branded with the existing Nexora navy/orange identity and is designed for `app.nexorastaffingllp.com` after deployment.
 
 ## Local development

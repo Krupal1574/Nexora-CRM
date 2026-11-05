@@ -58,6 +58,65 @@ The interface should make these areas visible, even when a feature is labelled `
 | Team & roles | Organisation members, membership status, permissions |
 | Settings | Organisation, custom pipeline stages, integrations, security |
 
+## Approved Bitrix-Equivalent Capability Scope
+
+The supplied Bitrix screenshots define the functional benchmark for Nexora CRM. Nexora will implement equivalent workflows for staffing, with its own navy, white, and orange visual system and its own information architecture. Do not copy Bitrix assets, branding, screen layouts, or proprietary extensions.
+
+### Leads workspace
+
+- A lead list with saved views, search, filters, bulk selection, sortable columns, and pagination.
+- List, kanban, activity, and calendar views.
+- Staffing-specific fields such as candidate name, phone, email, source, visa/work authorisation, job role, lead stage, owner, created date, and next activity.
+- A visible stage/progress indicator in list and kanban views.
+- Quick create for a new lead and clear empty/loading/error states.
+- Row actions: view, edit, duplicate, archive/delete (permission controlled), create an e-mail activity, schedule an activity, and convert.
+
+### Lead conversion
+
+An authorised user can convert a qualified lead into one or more linked CRM records:
+
+- Candidate/contact
+- Client company
+- Hiring opportunity or deal
+- Any valid combination of the above
+
+Conversion must be idempotent, preserve lead history, record the actor and timestamp in the audit log, and prevent cross-organisation access.
+
+### Lead record
+
+- Editable general profile with contact details, job role, source, owner, tags, safe external-profile URLs, and custom fields.
+- Configurable stage bar, for example: New, Resume received, Contacted, Follow-up, Qualified, Enrolled, Closed.
+- Linked contacts, client/company, opportunities, submissions, products/services, and supporting documents when those modules are introduced.
+- A complete timeline showing creation, field changes, stage changes, assignments, notes, activities, and conversions.
+- An activity composer supporting task, call, e-mail draft/log, message log, meeting/visit, and video meeting link. Initial delivery may create activity records only; sending e-mail or messages requires a separately approved integration.
+
+### Activities and planning
+
+- Schedule and assign follow-up tasks, calls, interviews, meetings, and reminders.
+- Show overdue, planned, and completed activities on dashboards and the lead record.
+- Calendar and activity views filtered to the current organisation and permitted owners.
+- Optional notification delivery through the transactional outbox, never directly from a database write.
+
+### Automation and extensions
+
+- Phase B+: configurable, tenant-scoped automation rules, such as assigning an owner when a lead enters a stage, creating a follow-up task, or notifying a manager.
+- Rules must run asynchronously through the outbox, be idempotent, include audit visibility, and have organisation-admin controls.
+- Third-party integrations remain disabled by default and must pass a privacy/security review. LinkedIn remains URL-only unless an approved, compliant enrichment provider is selected.
+
+### Explicitly not copied from Bitrix
+
+- Bitrix branding, imagery, navigation design, source code, extensions, marketplace apps, or user data.
+- Unauthorised social-profile scraping, credential collection, or private API access.
+
+## Delivery Sequence for the Bitrix-Equivalent Scope
+
+1. **Leads core** — database model, create/edit/detail/list, stage pipeline, ownership, filters, and tenant tests.
+2. **Activities** — tasks, calls, notes, reminders, activity timeline, and calendar views.
+3. **Conversion** — candidate/contact, client company, and opportunity/deal creation with preserved history.
+4. **Staffing modules** — candidates, clients, jobs, submissions, interviews, and placements.
+5. **Automation** — trigger/rule builder, outbox workers, monitoring, retry policy, and admin controls.
+6. **Communications/integrations** — only after provider selection, consent, permissions, and security review.
+
 ## Permission Model
 
 Base roles are `OWNER`, `ADMIN`, `MANAGER`, `MEMBER`, and `VIEWER`.

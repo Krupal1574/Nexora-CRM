@@ -1,9 +1,10 @@
-"use client";
+import Link from "next/link";
 import { CrmShell } from "@/components/crm-shell";
-import { SoonButton } from "@/lib/crm/toast-context";
-import { SAMPLE_LEADS, getInitials, getPillClass } from "@/lib/crm/sample-data";
+import { getLeadsWorkspaceStatus } from "@/lib/leads/workspace";
 
 export default function LeadsPage() {
+  const status = getLeadsWorkspaceStatus();
+
   return (
     <CrmShell>
       <div className="page-top">
@@ -11,42 +12,22 @@ export default function LeadsPage() {
           <h1>Leads</h1>
           <p className="page-sub">Track prospects before they become clients.</p>
         </div>
-        <SoonButton label="+ New lead" />
+        <button className="btn" disabled title="Lead creation requires an active CRM membership">
+          + New lead
+        </button>
       </div>
 
-      <div className="tools">
-        <input placeholder="Search leads…" style={{ width: "auto", minWidth: 200 }} readOnly />
-        <select><option>All statuses</option></select>
-        <SoonButton label="Export CSV" className="btn ghost" />
-      </div>
-
-      <div className="card tbl">
-        <table>
-          <thead>
-            <tr>
-              <th>Contact</th>
-              <th>Company</th>
-              <th>Source</th>
-              <th>Temp</th>
-              <th>Owner</th>
-              <th>Value</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {SAMPLE_LEADS.map((lead, i) => (
-              <tr key={i}>
-                <td><span className="av">{getInitials(lead.name)}</span>{lead.name}</td>
-                <td>{lead.company}</td>
-                <td>{lead.source}</td>
-                <td><span className={`pill ${getPillClass(lead.temperature)}`}>{lead.temperature}</span></td>
-                <td>{lead.owner}</td>
-                <td>{lead.value}</td>
-                <td><SoonButton label="Convert" className="btn ghost" /></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="card empty-state" role="status">
+        <span className="big">◎</span>
+        <h3>{status.title}</h3>
+        <p>{status.detail}</p>
+        <p style={{ fontSize: 13, maxWidth: 560, margin: "12px auto 0" }}>
+          Leads will support list, kanban, activity, and calendar views once the
+          tenant-scoped data service is connected. No sample customer records are shown here.
+        </p>
+        <Link href="/settings" className="btn ghost" style={{ marginTop: 16 }}>
+          Open settings
+        </Link>
       </div>
     </CrmShell>
   );

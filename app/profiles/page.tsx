@@ -20,15 +20,24 @@ export default function ProfilesPage() {
     }
     try {
       const parsed = new URL(trimmed);
-      if (parsed.protocol !== "https:") {
-        setError("Only secure https:// URLs are allowed.");
+      if (parsed.protocol !== "https:" || parsed.username || parsed.password) {
+        setError("Only secure https:// URLs without credentials are allowed.");
         return;
       }
+      const hostname = parsed.hostname.toLowerCase().replace(/^www\./, "");
+      const privateIpv4 = /^(0|10|127)\.|^169\.254\.|^192\.168\.|^172\.(1[6-9]|2\d|3[0-1])\./;
+      if (hostname === "localhost" || hostname.endsWith(".localhost") || hostname === "::1" || privateIpv4.test(hostname) || (parsed.port && parsed.port !== "443")) {
+        setError("This profile URL points to a private or unsupported address.");
+        return;
+      }
+      parsed.hash = "";
+      for (const key of [...parsed.searchParams.keys()]) parsed.searchParams.delete(key);
+      parsed.pathname = parsed.pathname.replace(/\/+$/, "") || "/";
       setPreview({
-        url: parsed.href,
+        url: parsed.toString(),
         name: name.trim() || "Unnamed profile",
         role: role.trim() || "No headline added",
-        host: parsed.hostname.replace(/^www\./, ""),
+        host: hostname,
       });
     } catch {
       setError("Please enter a valid https:// URL.");
