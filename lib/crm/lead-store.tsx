@@ -25,22 +25,40 @@ export interface CrmLead extends Lead {
 }
 
 export type LeadStage =
-  | "New"
-  | "Resume received"
-  | "Contacted"
-  | "Follow-up"
+  | "New Lead"
+  | "Resume Lead"
+  | "Chat Lead"
+  | "Outsource"
+  | "Website"
+  | "Cold E-mail"
+  | "DNR 1"
+  | "DNR 2"
+  | "DNR 3"
+  | "New Stage"
+  | "Hot Lead DNR"
+  | "Not Interested"
+  | "Connected"
+  | "Follow Up"
   | "Qualified"
-  | "Enrolled"
-  | "Closed";
+  | "Enrolled";
 
 export const LEAD_STAGES: LeadStage[] = [
-  "New",
-  "Resume received",
-  "Contacted",
-  "Follow-up",
+  "New Lead",
+  "Resume Lead",
+  "Chat Lead",
+  "Outsource",
+  "Website",
+  "Cold E-mail",
+  "DNR 1",
+  "DNR 2",
+  "DNR 3",
+  "New Stage",
+  "Hot Lead DNR",
+  "Not Interested",
+  "Connected",
+  "Follow Up",
   "Qualified",
   "Enrolled",
-  "Closed",
 ];
 
 export interface LeadNote {
@@ -86,7 +104,7 @@ function seedLeads(): CrmLead[] {
     company: l.company || l.accountRef || "Technology",
     phone: l.phone || `+91 98765 ${40000 + i}`,
     email: l.email || `${l.name.toLowerCase().replace(/ /g, ".")}@example.com`,
-    stage: (["New", "Resume received", "Contacted", "Follow-up", "Qualified", "New"] as LeadStage[])[i] ?? "New",
+    stage: (["New Lead", "Resume Lead", "Connected", "Cold E-mail", "Follow Up", "Qualified"] as LeadStage[])[i] ?? "New Lead",
     date: l.date || new Date().toISOString().split("T")[0],
     location: l.location || "USA",
     visaStatus: l.visaStatus || "H1B",
@@ -179,7 +197,7 @@ export function LeadStoreProvider({ children }: { children: ReactNode }) {
         technology: data.technology || "Computer science",
         accountRef: data.accountRef || "",
         remark: data.remark || "",
-        stage: data.stage || "New",
+        stage: data.stage || "New Lead",
         notes: data.remark
           ? [
               {

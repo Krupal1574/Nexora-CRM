@@ -16,7 +16,7 @@ export default function DashboardPage() {
   const { tasks, toggleTask } = useTaskStore();
   const { show } = useToast();
 
-  const activeLeads = leads.filter((l) => l.stage !== "Closed").length;
+  const activeLeads = leads.filter((l) => l.stage !== "Not Interested").length;
   const talentPool = candidates.length;
   const openJobs = jobs.filter((j) => j.status === "Open").length;
   const placements = candidates.filter((c) => c.stage === "Placed").length + 3;

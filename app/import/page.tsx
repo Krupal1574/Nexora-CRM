@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { CrmShell } from "@/components/crm-shell";
 import { useToast } from "@/lib/crm/toast-context";
-import { useLeadStore } from "@/lib/crm/lead-store";
+import { useLeadStore, type LeadStage, LEAD_STAGES } from "@/lib/crm/lead-store";
 import { useCandidateStore, type PipelineStage } from "@/lib/crm/candidate-store";
 
 interface ImportHistoryEntry {
@@ -132,6 +132,9 @@ export default function ImportExportPage() {
         const technology = r["technology"] || r["role"] || "Computer science";
         const accountRef = r["account ref"] || "";
         const remark = r["remark"] || "";
+        const stageRaw = r["stage"] || r["lead stage"] || "";
+        const matchedStage = LEAD_STAGES.find((s) => s.toLowerCase() === stageRaw.toLowerCase().trim());
+        const stage: LeadStage = matchedStage || "New Lead";
 
         createLead({
           name,
@@ -151,7 +154,7 @@ export default function ImportExportPage() {
           remark,
           company: accountRef || technology || "Independent Candidate",
           owner: salesPerson,
-          stage: "New",
+          stage,
         });
         addedCount++;
       });

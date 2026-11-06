@@ -47,6 +47,7 @@ export default function LeadsPage() {
     technology: "Computer science",
     accountRef: "",
     remark: "",
+    stage: "New Lead" as LeadStage,
   });
 
   // Extract locations dynamically
@@ -123,7 +124,7 @@ export default function LeadsPage() {
       remark: form.remark.trim(),
       company: form.accountRef || form.technology || "Independent Candidate",
       owner: form.salesPerson,
-      stage: "New",
+      stage: form.stage || "New Lead",
       tags: [form.technology, form.visaStatus, form.location].filter(Boolean) as string[],
     });
 
@@ -144,6 +145,7 @@ export default function LeadsPage() {
       technology: "Computer science",
       accountRef: "",
       remark: "",
+      stage: "New Lead",
     });
     show(`Lead "${created.name}" created successfully.`);
   };
@@ -389,7 +391,30 @@ export default function LeadsPage() {
                       </div>
                     </td>
                     <td>
-                      <span className={`pill ${getPillClass(lead.stage)}`}>{lead.stage}</span>
+                      <select
+                        value={lead.stage}
+                        onChange={(e) => {
+                          const newStage = e.target.value as LeadStage;
+                          store.changeStage(lead.id, newStage, "Krupal P.");
+                          show(`Stage updated to "${newStage}" for ${lead.name}`);
+                        }}
+                        className={`pill ${getPillClass(lead.stage)}`}
+                        style={{
+                          border: "none",
+                          cursor: "pointer",
+                          fontWeight: 600,
+                          fontSize: 12,
+                          padding: "4px 8px",
+                          width: "auto",
+                        }}
+                        title="Click to update lead stage"
+                      >
+                        {LEAD_STAGES.map((s) => (
+                          <option key={s} value={s} style={{ color: "var(--fg)", background: "var(--card)" }}>
+                            {s}
+                          </option>
+                        ))}
+                      </select>
                     </td>
                     <td style={{ textAlign: "right" }}>
                       <div style={{ display: "inline-flex", gap: 4 }}>
@@ -414,56 +439,125 @@ export default function LeadsPage() {
 
       {/* Kanban View */}
       {view === "kanban" && (
-        <div className="kanban">
-          {LEAD_STAGES.map((stage) => {
-            const list = filtered.filter((l) => l.stage === stage);
-            return (
-              <div
-                key={stage}
-                className="kanban-col"
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  const id = e.dataTransfer.getData("text/plain");
-                  if (id) {
-                    store.changeStage(id, stage, "Krupal P.");
-                    show(`Lead moved to ${stage}`);
-                  }
-                }}
-              >
-                <h4>
-                  <span>{stage}</span>
-                  <span className="pill">{list.length}</span>
-                </h4>
-                {list.map((lead) => (
-                  <Link
-                    key={lead.id}
-                    href={`/leads/${lead.id}`}
-                    className="kanban-card"
-                    draggable
-                    onDragStart={(e) => e.dataTransfer.setData("text/plain", lead.id)}
-                    style={{ textDecoration: "none", color: "inherit", display: "block" }}
-                  >
-                    <b>{lead.name}</b>
-                    <small style={{ display: "block", color: "var(--mu)" }}>
-                      {lead.technology || lead.company}
-                    </small>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6, fontSize: 11 }}>
-                      <span>📍 {lead.location}</span>
-                      {lead.visaStatus && <span className="pill">{lead.visaStatus}</span>}
+        <>
+          {/* Quick Stage Jump Navigation */}
+          <div style={{ marginBottom: 12, display: "flex", gap: 6, overflowX: "auto", paddingBottom: 6 }}>
+            <span style={{ fontSize: 12, color: "var(--mu)", alignSelf: "center", whiteSpace: "nowrap", marginRight: 4 }}>
+              Jump to:
+            </span>
+            {LEAD_STAGES.map((stage) => {
+              const count = filtered.filter((l) => l.stage === stage).length;
+              return (
+                <button
+                  key={stage}
+                  type="button"
+                  className="btn ghost"
+                  style={{ fontSize: 11, padding: "3px 8px", whiteSpace: "nowrap" }}
+                  onClick={() => {
+                    const el = document.getElementById(`kanban-col-${stage.replace(/\s+/g, "-")}`);
+                    el?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+                  }}
+                >
+                  {stage}
+                  <span className={`pill ${getPillClass(stage)}`} style={{ marginLeft: 4, fontSize: 10, padding: "1px 5px" }}>
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="kanban">
+            {LEAD_STAGES.map((stage) => {
+              const list = filtered.filter((l) => l.stage === stage);
+              return (
+                <div
+                  key={stage}
+                  id={`kanban-col-${stage.replace(/\s+/g, "-")}`}
+                  className="kanban-col"
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    const id = e.dataTransfer.getData("text/plain");
+                    if (id) {
+                      store.changeStage(id, stage, "Krupal P.");
+                      show(`Lead moved to ${stage}`);
+                    }
+                  }}
+                >
+                  <h4>
+                    <span>{stage}</span>
+                    <span className={`pill ${getPillClass(stage)}`}>{list.length}</span>
+                  </h4>
+                  {list.length === 0 ? (
+                    <div style={{ color: "var(--mu)", fontSize: 12, textAlign: "center", padding: "30px 10px", fontStyle: "italic" }}>
+                      Drop leads here
                     </div>
-                    <span
-                      className={`pill ${getPillClass(lead.leadType || lead.temperature)}`}
-                      style={{ marginTop: 6, display: "inline-block", fontSize: 10 }}
-                    >
-                      {lead.leadType || lead.temperature}
-                    </span>
-                  </Link>
-                ))}
-              </div>
-            );
-          })}
-        </div>
+                  ) : (
+                    list.map((lead) => (
+                      <div
+                        key={lead.id}
+                        className="kanban-card"
+                        draggable
+                        onDragStart={(e) => e.dataTransfer.setData("text/plain", lead.id)}
+                        style={{ cursor: "grab" }}
+                      >
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 6 }}>
+                          <Link
+                            href={`/leads/${lead.id}`}
+                            style={{ fontWeight: 700, fontSize: 13, textDecoration: "none", color: "inherit" }}
+                          >
+                            {lead.name}
+                          </Link>
+                          <span
+                            className={`pill ${getPillClass(lead.leadType || lead.temperature)}`}
+                            style={{ fontSize: 9, padding: "2px 6px" }}
+                          >
+                            {lead.leadType || lead.temperature}
+                          </span>
+                        </div>
+                        <small style={{ display: "block", color: "var(--mu)", marginTop: 2 }}>
+                          {lead.technology || lead.company}
+                        </small>
+                        <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8, fontSize: 11, color: "var(--mu)" }}>
+                          <span>📍 {lead.location}</span>
+                          {lead.visaStatus && <span className="pill" style={{ fontSize: 10 }}>{lead.visaStatus}</span>}
+                        </div>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8, paddingTop: 6, borderTop: "1px solid var(--bd)" }}>
+                          <span style={{ fontSize: 10, color: "var(--mu)" }}>
+                            👤 {lead.salesPerson || lead.owner}
+                          </span>
+                          <select
+                            value={lead.stage}
+                            onChange={(e) => {
+                              const target = e.target.value as LeadStage;
+                              store.changeStage(lead.id, target, "Krupal P.");
+                              show(`Moved ${lead.name} to ${target}`);
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                            style={{
+                              fontSize: 10,
+                              padding: "2px 4px",
+                              width: "auto",
+                              borderRadius: 4,
+                              border: "1px solid var(--bd)",
+                              background: "var(--bg)",
+                            }}
+                            title="Move stage"
+                          >
+                            {LEAD_STAGES.map((s) => (
+                              <option key={s} value={s}>{s}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </>
       )}
 
       {/* Create Lead Modal */}
@@ -611,6 +705,18 @@ export default function LeadsPage() {
                   ))}
                 </select>
               </div>
+            </div>
+
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 600, display: "block", marginBottom: 4 }}>Initial Lead Stage</label>
+              <select
+                value={form.stage}
+                onChange={(e) => setForm({ ...form, stage: e.target.value as LeadStage })}
+              >
+                {LEAD_STAGES.map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
             </div>
 
             <div>

@@ -83,6 +83,7 @@ export default function LeadDetailPage() {
       salesPerson: lead.salesPerson || lead.owner || "Krupal P.",
       accountRef: lead.accountRef || "",
       remark: lead.remark || "",
+      stage: lead.stage,
     });
     setShowEdit(true);
   };
@@ -106,6 +107,7 @@ export default function LeadDetailPage() {
       owner: editForm.salesPerson,
       accountRef: editForm.accountRef,
       remark: editForm.remark,
+      stage: (editForm.stage as LeadStage) || lead.stage,
     });
     store.addActivity(lead.id, {
       type: "note",
@@ -602,6 +604,18 @@ export default function LeadDetailPage() {
               <label style={{ fontSize: 12, fontWeight: 600, display: "block", marginBottom: 4 }}>Sales Person (Owner)</label>
               <input value={editForm.salesPerson || ""} onChange={(e) => setEditForm({ ...editForm, salesPerson: e.target.value })} />
             </div>
+          </div>
+
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 600, display: "block", marginBottom: 4 }}>Lead Stage</label>
+            <select
+              value={editForm.stage || lead.stage}
+              onChange={(e) => setEditForm({ ...editForm, stage: e.target.value })}
+            >
+              {LEAD_STAGES.map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
           </div>
 
           <div>

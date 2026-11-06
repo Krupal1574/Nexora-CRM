@@ -280,6 +280,27 @@ export const ROLE_DEFINITIONS = [
   { title: "Viewer", description: "Read-only" },
 ];
 
+export const LEAD_STAGES = [
+  "New Lead",
+  "Resume Lead",
+  "Chat Lead",
+  "Outsource",
+  "Website",
+  "Cold E-mail",
+  "DNR 1",
+  "DNR 2",
+  "DNR 3",
+  "New Stage",
+  "Hot Lead DNR",
+  "Not Interested",
+  "Connected",
+  "Follow Up",
+  "Qualified",
+  "Enrolled",
+] as const;
+
+export type LeadStage = (typeof LEAD_STAGES)[number];
+
 // Helper functions
 export function getInitials(name: string): string {
   if (!name) return "??";
@@ -295,11 +316,19 @@ export function getPillClass(status: string): string {
   switch (status) {
     case "Hot":
     case "Hot Lead":
+    case "Hot Lead DNR":
     case "High":
+    case "Not Interested":
+    case "DNR 1":
+    case "DNR 2":
+    case "DNR 3":
       return "bad";
     case "Warm":
     case "Warm Lead":
     case "Med":
+    case "Follow Up":
+    case "Chat Lead":
+    case "Connected":
     case "Interview":
     case "Offer":
     case "Offer stage":
@@ -311,6 +340,12 @@ export function getPillClass(status: string): string {
     case "Qualified":
     case "Enrolled":
       return "ok";
+    case "Cold E-mail":
+    case "Outsource":
+    case "Resume Lead":
+    case "Website":
+    case "New Lead":
+    case "New Stage":
     default:
       return "";
   }
