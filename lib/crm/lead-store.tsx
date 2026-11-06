@@ -83,22 +83,34 @@ function seedLeads(): CrmLead[] {
   return SAMPLE_LEADS.map((l, i) => ({
     ...l,
     id: `lead-${i + 1}`,
-    phone: `+91 98765 ${40000 + i}`,
-    email: `${l.name.toLowerCase().replace(/ /g, ".")}@example.com`,
-    stage: (["New", "Contacted", "Follow-up", "Qualified", "New"] as LeadStage[])[i] ?? "New",
-    notes: [],
+    company: l.company || l.accountRef || "Technology",
+    phone: l.phone || `+91 98765 ${40000 + i}`,
+    email: l.email || `${l.name.toLowerCase().replace(/ /g, ".")}@example.com`,
+    stage: (["New", "Resume received", "Contacted", "Follow-up", "Qualified", "New"] as LeadStage[])[i] ?? "New",
+    date: l.date || new Date().toISOString().split("T")[0],
+    location: l.location || "USA",
+    visaStatus: l.visaStatus || "H1B",
+    experience: l.experience || "5 yrs",
+    leadType: l.leadType || "Cold Lead",
+    leadSource: l.leadSource || l.source || "Linkedin Resume",
+    leadPerson: l.leadPerson || "Yatri",
+    salesPerson: l.salesPerson || l.owner || "Krupal P.",
+    technology: l.technology || "Computer science",
+    accountRef: l.accountRef || "",
+    remark: l.remark || "",
+    notes: l.remark ? [{ id: `note-seed-${i}`, text: l.remark, author: l.leadPerson || "Yatri", createdAt: now }] : [],
     activities: [
       {
         id: `act-seed-${i}`,
         type: "creation" as ActivityType,
-        title: "Lead created",
-        description: `${l.name} was added as a lead from ${l.source}.`,
-        author: l.owner,
+        title: "Lead sourced",
+        description: `${l.name} (${l.technology || "Candidate"}) sourced from ${l.leadSource || l.source} by ${l.leadPerson || "Yatri"}.`,
+        author: l.salesPerson || l.owner,
         createdAt: now,
       },
     ],
-    profileUrls: [],
-    tags: [],
+    profileUrls: l.linkedin ? [l.linkedin] : [],
+    tags: [l.technology, l.visaStatus, l.location].filter(Boolean) as string[],
     createdAt: now,
     updatedAt: now,
   }));
@@ -108,7 +120,7 @@ function seedLeads(): CrmLead[] {
 interface LeadStoreContextType {
   leads: CrmLead[];
   getLead: (id: string) => CrmLead | undefined;
-  createLead: (data: Omit<CrmLead, "id" | "createdAt" | "updatedAt" | "notes" | "activities" | "convertedTo">) => CrmLead;
+  createLead: (data: Partial<CrmLead> & { name: string }) => CrmLead;
   updateLead: (id: string, patch: Partial<CrmLead>) => void;
   deleteLead: (id: string) => void;
   duplicateLead: (id: string) => CrmLead | undefined;
@@ -135,22 +147,65 @@ export function LeadStoreProvider({ children }: { children: ReactNode }) {
   );
 
   const createLead = useCallback(
-    (data: Omit<CrmLead, "id" | "createdAt" | "updatedAt" | "notes" | "activities" | "convertedTo">) => {
+    (data: Partial<CrmLead> & { name: string }) => {
       const now = new Date().toISOString();
+      const id = genId();
+      const temp =
+        data.temperature ||
+        (data.leadType === "Hot Lead"
+          ? "Hot"
+          : data.leadType === "Warm Lead"
+          ? "Warm"
+          : "New");
       const lead: CrmLead = {
-        ...data,
-        id: genId(),
-        notes: [],
+        id,
+        name: data.name,
+        company: data.company || data.accountRef || data.technology || "Independent Candidate",
+        source: data.leadSource || data.source || "Linkedin Resume",
+        temperature: temp,
+        owner: data.salesPerson || data.owner || "Krupal P.",
+        value: data.value || "₹5.0L",
+        date: data.date || now.split("T")[0],
+        location: data.location || "USA",
+        phone: data.phone || "",
+        email: data.email || "",
+        linkedin: data.linkedin || "",
+        visaStatus: data.visaStatus || "",
+        experience: data.experience || "",
+        leadType: data.leadType || "Cold Lead",
+        leadSource: data.leadSource || data.source || "Linkedin Resume",
+        leadPerson: data.leadPerson || "Yatri",
+        salesPerson: data.salesPerson || data.owner || "Krupal P.",
+        technology: data.technology || "Computer science",
+        accountRef: data.accountRef || "",
+        remark: data.remark || "",
+        stage: data.stage || "New",
+        notes: data.remark
+          ? [
+              {
+                id: genId(),
+                text: data.remark,
+                author: data.leadPerson || "Yatri",
+                createdAt: now,
+              },
+            ]
+          : [],
         activities: [
           {
             id: genId(),
             type: "creation",
-            title: "Lead created",
-            description: `${data.name} was added as a new lead.`,
-            author: data.owner,
+            title: "Lead sourced",
+            description: `${data.name} was added as a lead from ${data.leadSource || data.source || "Linkedin Resume"} by ${data.leadPerson || "Yatri"}.`,
+            author: data.salesPerson || data.owner || "Krupal P.",
             createdAt: now,
           },
         ],
+        profileUrls: data.linkedin
+          ? [data.linkedin]
+          : data.profileUrls || [],
+        tags:
+          data.tags ||
+          ([data.technology, data.visaStatus, data.location].filter(Boolean) as string[]),
         createdAt: now,
         updatedAt: now,
       };

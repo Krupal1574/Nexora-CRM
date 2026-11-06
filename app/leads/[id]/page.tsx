@@ -70,8 +70,19 @@ export default function LeadDetailPage() {
 
   const openEdit = () => {
     setEditForm({
-      name: lead.name, company: lead.company, email: lead.email, phone: lead.phone,
-      source: lead.source, temperature: lead.temperature, owner: lead.owner, value: lead.value,
+      name: lead.name,
+      technology: lead.technology || lead.company || "",
+      location: lead.location || "USA",
+      visaStatus: lead.visaStatus || "",
+      email: lead.email || "",
+      phone: lead.phone || "",
+      experience: lead.experience || "",
+      leadType: lead.leadType || (lead.temperature === "Hot" ? "Hot Lead" : lead.temperature === "Warm" ? "Warm Lead" : "Cold Lead"),
+      leadSource: lead.leadSource || lead.source || "",
+      leadPerson: lead.leadPerson || "Yatri",
+      salesPerson: lead.salesPerson || lead.owner || "Krupal P.",
+      accountRef: lead.accountRef || "",
+      remark: lead.remark || "",
     });
     setShowEdit(true);
   };
@@ -79,22 +90,31 @@ export default function LeadDetailPage() {
   const saveEdit = () => {
     store.updateLead(lead.id, {
       name: editForm.name,
-      company: editForm.company,
+      technology: editForm.technology,
+      company: editForm.accountRef || editForm.technology || lead.company,
+      location: editForm.location,
+      visaStatus: editForm.visaStatus,
       email: editForm.email,
       phone: editForm.phone,
-      source: editForm.source,
-      temperature: editForm.temperature as "Hot" | "Warm" | "New",
-      owner: editForm.owner,
-      value: editForm.value,
+      experience: editForm.experience,
+      leadType: editForm.leadType,
+      temperature: editForm.leadType === "Hot Lead" ? "Hot" : editForm.leadType === "Warm Lead" ? "Warm" : "New",
+      leadSource: editForm.leadSource,
+      source: editForm.leadSource,
+      leadPerson: editForm.leadPerson,
+      salesPerson: editForm.salesPerson,
+      owner: editForm.salesPerson,
+      accountRef: editForm.accountRef,
+      remark: editForm.remark,
     });
     store.addActivity(lead.id, {
       type: "note",
       title: "Lead details updated",
-      description: "Profile fields were edited by Krupal P.",
+      description: `Staffing fields were updated by ${lead.salesPerson || "Krupal P."}.`,
       author: "Krupal P.",
     });
     setShowEdit(false);
-    show("Lead updated.");
+    show("Lead updated successfully.");
   };
 
   const handleStageChange = (stage: LeadStage) => {
@@ -273,10 +293,17 @@ export default function LeadDetailPage() {
             </div>
             <FieldRow label="Email">{lead.email || "—"}</FieldRow>
             <FieldRow label="Phone">{lead.phone || "—"}</FieldRow>
-            <FieldRow label="Source">{lead.source}</FieldRow>
-            <FieldRow label="Owner"><span className="av" style={{ width: 22, height: 22, fontSize: 10 }}>{getInitials(lead.owner)}</span> {lead.owner}</FieldRow>
-            <FieldRow label="Deal value">{lead.value || "—"}</FieldRow>
+            <FieldRow label="Technology / Domain">{lead.technology || lead.company || "—"}</FieldRow>
+            <FieldRow label="Location">{lead.location ? `📍 ${lead.location}` : "—"}</FieldRow>
+            <FieldRow label="Visa Status">{lead.visaStatus ? <span className="pill">{lead.visaStatus}</span> : "—"}</FieldRow>
+            <FieldRow label="Experience">{lead.experience || "—"}</FieldRow>
+            <FieldRow label="Lead Type"><span className={`pill ${getPillClass(lead.leadType || lead.temperature)}`}>{lead.leadType || lead.temperature}</span></FieldRow>
+            <FieldRow label="Lead Source">{lead.leadSource || lead.source}</FieldRow>
+            <FieldRow label="Lead Person (Sourcer)"><b>{lead.leadPerson || "Yatri"}</b></FieldRow>
+            <FieldRow label="Sales Person (Owner)"><span className="av" style={{ width: 22, height: 22, fontSize: 10 }}>{getInitials(lead.salesPerson || lead.owner)}</span> {lead.salesPerson || lead.owner}</FieldRow>
+            {lead.accountRef && <FieldRow label="Account Ref">{lead.accountRef}</FieldRow>}
             <FieldRow label="Stage"><span className={`pill ${getPillClass(lead.stage)}`}>{lead.stage}</span></FieldRow>
+            {lead.remark && <FieldRow label="Remark">{lead.remark}</FieldRow>}
             {lead.tags.length > 0 && (
               <FieldRow label="Tags">
                 {lead.tags.map((t) => <span key={t} className="tag">{t}</span>)}
@@ -516,20 +543,77 @@ export default function LeadDetailPage() {
       </div>
 
       {/* Edit Modal */}
-      <Modal open={showEdit} onClose={() => setShowEdit(false)} title="Edit lead" width={520}>
-        <div style={{ display: "grid", gap: 10 }}>
-          <input placeholder="Full name" value={editForm.name || ""} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} />
-          <input placeholder="Company" value={editForm.company || ""} onChange={(e) => setEditForm({ ...editForm, company: e.target.value })} />
+      <Modal open={showEdit} onClose={() => setShowEdit(false)} title="Edit Sourced Lead" width={580}>
+        <div style={{ display: "grid", gap: 12 }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            <input placeholder="Email" value={editForm.email || ""} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} />
-            <input placeholder="Phone" value={editForm.phone || ""} onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} />
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 600, display: "block", marginBottom: 4 }}>Candidate Name</label>
+              <input value={editForm.name || ""} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} />
+            </div>
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 600, display: "block", marginBottom: 4 }}>Technology / Domain</label>
+              <input value={editForm.technology || ""} onChange={(e) => setEditForm({ ...editForm, technology: e.target.value })} />
+            </div>
           </div>
+
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            <select value={editForm.owner || ""} onChange={(e) => setEditForm({ ...editForm, owner: e.target.value })}>
-              {OWNERS.map((o) => <option key={o} value={o}>{o}</option>)}
-            </select>
-            <input placeholder="Deal value" value={editForm.value || ""} onChange={(e) => setEditForm({ ...editForm, value: e.target.value })} />
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 600, display: "block", marginBottom: 4 }}>Location</label>
+              <input value={editForm.location || ""} onChange={(e) => setEditForm({ ...editForm, location: e.target.value })} />
+            </div>
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 600, display: "block", marginBottom: 4 }}>Visa Status</label>
+              <input placeholder="H1B, OPT/CPT, Green Card, Citizen" value={editForm.visaStatus || ""} onChange={(e) => setEditForm({ ...editForm, visaStatus: e.target.value })} />
+            </div>
           </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 600, display: "block", marginBottom: 4 }}>Email Address</label>
+              <input value={editForm.email || ""} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} />
+            </div>
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 600, display: "block", marginBottom: 4 }}>Phone Number</label>
+              <input value={editForm.phone || ""} onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} />
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 600, display: "block", marginBottom: 4 }}>Experience</label>
+              <input value={editForm.experience || ""} onChange={(e) => setEditForm({ ...editForm, experience: e.target.value })} />
+            </div>
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 600, display: "block", marginBottom: 4 }}>Lead Type</label>
+              <select value={editForm.leadType || "Cold Lead"} onChange={(e) => setEditForm({ ...editForm, leadType: e.target.value })}>
+                <option value="Cold Lead">Cold Lead</option>
+                <option value="Warm Lead">Warm Lead</option>
+                <option value="Hot Lead">Hot Lead</option>
+              </select>
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 600, display: "block", marginBottom: 4 }}>Lead Person (Sourcer)</label>
+              <input value={editForm.leadPerson || ""} onChange={(e) => setEditForm({ ...editForm, leadPerson: e.target.value })} />
+            </div>
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 600, display: "block", marginBottom: 4 }}>Sales Person (Owner)</label>
+              <input value={editForm.salesPerson || ""} onChange={(e) => setEditForm({ ...editForm, salesPerson: e.target.value })} />
+            </div>
+          </div>
+
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 600, display: "block", marginBottom: 4 }}>Account Ref</label>
+            <input value={editForm.accountRef || ""} onChange={(e) => setEditForm({ ...editForm, accountRef: e.target.value })} />
+          </div>
+
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 600, display: "block", marginBottom: 4 }}>Remark / Notes</label>
+            <textarea rows={2} value={editForm.remark || ""} onChange={(e) => setEditForm({ ...editForm, remark: e.target.value })} />
+          </div>
+
           <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 8 }}>
             <button className="btn ghost" onClick={() => setShowEdit(false)}>Cancel</button>
             <button className="btn" onClick={saveEdit}>Save changes</button>
