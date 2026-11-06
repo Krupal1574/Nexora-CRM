@@ -273,3 +273,4 @@ export function CandidateStoreProvider({ children }: { children: ReactNode }) {
     </CandidateStoreContext.Provider>
   );
 }
+
