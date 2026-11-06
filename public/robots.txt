@@ -1,0 +1,3 @@
+# Nexora CRM - Internal Staffing System
+User-agent: *
+Disallow: /
