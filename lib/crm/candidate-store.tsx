@@ -5,6 +5,7 @@ import {
   useContext,
   useState,
   useCallback,
+  useEffect,
   type ReactNode,
 } from "react";
 import type { Candidate } from "@/lib/crm/sample-data";
@@ -102,6 +103,54 @@ export function useCandidateStore() {
 export function CandidateStoreProvider({ children }: { children: ReactNode }) {
   const [candidates, setCandidates] = useState<CrmCandidate[]>(INITIAL_CANDIDATES);
 
+  useEffect(() => {
+    let mounted = true;
+    fetch("/api/crm/candidates")
+      .then((res) => res.json())
+      .then((data) => {
+        if (!mounted) return;
+        if (data.success && Array.isArray(data.candidates) && data.candidates.length > 0) {
+          const mapped: CrmCandidate[] = data.candidates.map((c: any) => ({
+            id: c.id,
+            name: c.name,
+            role: c.role || "Software Engineer",
+            location: c.location || "Remote",
+            stage: (c.stage as PipelineStage) || "Sourced",
+            experience: c.experience || "Entry level",
+            email: c.email || "",
+            phone: c.phone || "",
+            profileUrl: c.profileUrl || "",
+            source: c.source || "Direct",
+            skills: Array.isArray(c.skills) ? c.skills : typeof c.skills === "string" ? JSON.parse(c.skills || "[]") : [c.role ? c.role.split(" ")[0] : "Engineering"],
+            notes: c.notes ? [{ id: `cn-${c.id}`, text: c.notes, author: "Staffing Team", createdAt: c.createdAt || new Date().toISOString() }] : [],
+            activities: [
+              {
+                id: `ca-${c.id}`,
+                type: "stage_change",
+                title: `Moved to ${c.stage}`,
+                description: `Candidate loaded from live CRM database`,
+                author: "System",
+                createdAt: c.createdAt || new Date().toISOString(),
+              },
+            ],
+            noticePeriod: "30 days",
+            expectedSalary: "Competitive",
+            currentCompany: "Confidential",
+            createdAt: c.createdAt || new Date().toISOString(),
+            updatedAt: c.updatedAt || new Date().toISOString(),
+          }));
+          setCandidates(mapped);
+        }
+      })
+      .catch((err) => {
+        console.warn("Could not load candidates from API:", err);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   const getCandidate = useCallback(
     (id: string) => candidates.find((c) => c.id === id),
     [candidates]
@@ -141,6 +190,13 @@ export function CandidateStoreProvider({ children }: { children: ReactNode }) {
       };
 
       setCandidates((prev) => [newCand, ...prev]);
+
+      fetch("/api/crm/candidates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newCand),
+      }).catch((err) => console.error("Error creating candidate in DB:", err));
+
       return newCand;
     },
     []
@@ -159,12 +215,22 @@ export function CandidateStoreProvider({ children }: { children: ReactNode }) {
             : c
         )
       );
+
+      fetch(`/api/crm/candidates/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      }).catch((err) => console.error("Error updating candidate in DB:", err));
     },
     []
   );
 
   const deleteCandidate = useCallback((id: string) => {
     setCandidates((prev) => prev.filter((c) => c.id !== id));
+
+    fetch(`/api/crm/candidates/${id}`, {
+      method: "DELETE",
+    }).catch((err) => console.error("Error deleting candidate in DB:", err));
   }, []);
 
   const changeStage = useCallback(
@@ -191,6 +257,12 @@ export function CandidateStoreProvider({ children }: { children: ReactNode }) {
           };
         })
       );
+
+      fetch(`/api/crm/candidates/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stage: newStage }),
+      }).catch((err) => console.error("Error updating candidate stage in DB:", err));
     },
     []
   );

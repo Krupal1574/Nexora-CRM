@@ -168,8 +168,9 @@ export default function LeadDetailPage() {
       targets.push({ type: "Candidate", id: created.id });
     }
     if (convertOpts.client) {
+      const companyName = lead.company || lead.accountRef || `${lead.name} Account`;
       const created = clientStore.createClient({
-        name: lead.company,
+        name: companyName,
         industry: "Staffing & Recruitment",
         contactPerson: lead.name,
         contactEmail: lead.email,
@@ -180,10 +181,11 @@ export default function LeadDetailPage() {
       targets.push({ type: "Client", id: created.id });
     }
     if (convertOpts.deal) {
+      const companyName = lead.company || lead.accountRef || `${lead.name} Mandate`;
       const created = jobStore.createJob({
-        title: `Mandate for ${lead.company}`,
-        client: lead.company,
-        location: "Ahmedabad",
+        title: `Mandate for ${companyName}`,
+        client: companyName,
+        location: lead.location || "USA",
         status: "Open",
         salaryRange: lead.value || "Competitive",
       });

@@ -5,6 +5,7 @@ import {
   useContext,
   useState,
   useCallback,
+  useEffect,
   type ReactNode,
 } from "react";
 import type { Task } from "@/lib/crm/sample-data";
@@ -129,6 +130,38 @@ export function useTaskStore() {
 export function TaskStoreProvider({ children }: { children: ReactNode }) {
   const [tasks, setTasks] = useState<CrmTask[]>(INITIAL_TASKS);
 
+  useEffect(() => {
+    let mounted = true;
+    fetch("/api/crm/tasks")
+      .then((res) => res.json())
+      .then((data) => {
+        if (!mounted) return;
+        if (data.success && Array.isArray(data.tasks) && data.tasks.length > 0) {
+          const mapped: CrmTask[] = data.tasks.map((t: any) => ({
+            id: t.id,
+            text: t.text || "Untitled Task",
+            due: t.due || "Today",
+            dueDate: t.due || todayStr,
+            dueTime: "",
+            priority: (t.priority as TaskPriority) || "Med",
+            done: Boolean(t.done),
+            category: "Task" as TaskCategory,
+            assignedTo: t.assignedTo || "Krupal P.",
+            relatedTo: t.linkedType && t.linkedId ? { type: t.linkedType as any, id: t.linkedId, name: t.linkedId } : undefined,
+            createdAt: t.createdAt || new Date().toISOString(),
+          }));
+          setTasks(mapped);
+        }
+      })
+      .catch((err) => {
+        console.warn("Could not load tasks from API:", err);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   const getTask = useCallback((id: string) => tasks.find((t) => t.id === id), [tasks]);
 
   const createTask = useCallback((data: Partial<CrmTask> & { text: string }): CrmTask => {
@@ -148,21 +181,51 @@ export function TaskStoreProvider({ children }: { children: ReactNode }) {
     };
 
     setTasks((prev) => [newTask, ...prev]);
+
+    fetch("/api/crm/tasks", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(newTask),
+    }).catch((err) => console.error("Error creating task in DB:", err));
+
     return newTask;
   }, []);
 
   const updateTask = useCallback((id: string, data: Partial<CrmTask>) => {
     setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, ...data } : t)));
+
+    fetch(`/api/crm/tasks/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    }).catch((err) => console.error("Error updating task in DB:", err));
   }, []);
 
   const toggleTask = useCallback((id: string) => {
+    let newDone = false;
     setTasks((prev) =>
-      prev.map((t) => (t.id === id ? { ...t, done: !t.done } : t))
+      prev.map((t) => {
+        if (t.id === id) {
+          newDone = !t.done;
+          return { ...t, done: newDone };
+        }
+        return t;
+      })
     );
+
+    fetch(`/api/crm/tasks/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ done: newDone }),
+    }).catch((err) => console.error("Error toggling task done in DB:", err));
   }, []);
 
   const deleteTask = useCallback((id: string) => {
     setTasks((prev) => prev.filter((t) => t.id !== id));
+
+    fetch(`/api/crm/tasks/${id}`, {
+      method: "DELETE",
+    }).catch((err) => console.error("Error deleting task in DB:", err));
   }, []);
 
   return (

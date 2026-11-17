@@ -5,6 +5,7 @@ import {
   useContext,
   useState,
   useCallback,
+  useEffect,
   type ReactNode,
 } from "react";
 import type { Job } from "@/lib/crm/sample-data";
@@ -56,6 +57,39 @@ export function useJobStore() {
 export function JobStoreProvider({ children }: { children: ReactNode }) {
   const [jobs, setJobs] = useState<CrmJob[]>(INITIAL_JOBS);
 
+  useEffect(() => {
+    let mounted = true;
+    fetch("/api/crm/jobs")
+      .then((res) => res.json())
+      .then((data) => {
+        if (!mounted) return;
+        if (data.success && Array.isArray(data.jobs) && data.jobs.length > 0) {
+          const mapped: CrmJob[] = data.jobs.map((j: any) => ({
+            id: j.id,
+            title: j.title,
+            client: j.client || "Confidential",
+            location: j.location || "Remote",
+            status: j.status || "Open",
+            applicants: Number(j.applicants) || 0,
+            salaryRange: j.salaryMin && j.salaryMax ? `$${j.salaryMin} - $${j.salaryMax}` : "Competitive",
+            experienceRequired: "3+ years",
+            skillsRequired: [j.title ? j.title.split(" ")[0] : "Engineering"],
+            description: j.description || `Mandate for ${j.title} at ${j.client}`,
+            createdAt: j.createdAt || new Date().toISOString(),
+            updatedAt: j.updatedAt || new Date().toISOString(),
+          }));
+          setJobs(mapped);
+        }
+      })
+      .catch((err) => {
+        console.warn("Could not load jobs from API:", err);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   const getJob = useCallback(
     (id: string) => jobs.find((j) => j.id === id),
     [jobs]
@@ -80,6 +114,13 @@ export function JobStoreProvider({ children }: { children: ReactNode }) {
       };
 
       setJobs((prev) => [newJob, ...prev]);
+
+      fetch("/api/crm/jobs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newJob),
+      }).catch((err) => console.error("Error creating job in DB:", err));
+
       return newJob;
     },
     []
@@ -97,10 +138,20 @@ export function JobStoreProvider({ children }: { children: ReactNode }) {
           : j
       )
     );
+
+    fetch(`/api/crm/jobs/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    }).catch((err) => console.error("Error updating job in DB:", err));
   }, []);
 
   const deleteJob = useCallback((id: string) => {
     setJobs((prev) => prev.filter((j) => j.id !== id));
+
+    fetch(`/api/crm/jobs/${id}`, {
+      method: "DELETE",
+    }).catch((err) => console.error("Error deleting job in DB:", err));
   }, []);
 
   return (

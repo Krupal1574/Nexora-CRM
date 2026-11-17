@@ -4,6 +4,7 @@ import {
   useContext,
   useState,
   useCallback,
+  useEffect,
   type ReactNode,
 } from "react";
 import type { Lead } from "@/lib/crm/sample-data";
@@ -159,6 +160,66 @@ export function useLeadStore() {
 export function LeadStoreProvider({ children }: { children: ReactNode }) {
   const [leads, setLeads] = useState<CrmLead[]>(seedLeads);
 
+  useEffect(() => {
+    let mounted = true;
+    fetch("/api/crm/leads")
+      .then((res) => res.json())
+      .then((data) => {
+        if (!mounted) return;
+        if (data.success && Array.isArray(data.leads) && data.leads.length > 0) {
+          const mapped: CrmLead[] = data.leads.map((l: any) => ({
+            id: l.id,
+            name: l.name,
+            company: l.company || l.accountRef || l.technology || "Independent Candidate",
+            source: l.leadSource || l.source || "Website",
+            temperature: l.temperature || "New",
+            owner: l.salesPerson || l.owner || "Krupal P.",
+            value: l.value || "₹5.0L",
+            date: l.date || (l.createdAt ? new Date(l.createdAt).toISOString().split("T")[0] : new Date().toISOString().split("T")[0]),
+            location: l.location || "USA",
+            phone: l.phone || "",
+            email: l.email || "",
+            linkedin: l.linkedin || "",
+            visaStatus: l.visaStatus || "",
+            experience: l.experience || "",
+            leadType: l.leadType || "Cold Lead",
+            leadSource: l.leadSource || l.source || "Website",
+            leadPerson: l.leadPerson || "Krupal",
+            salesPerson: l.salesPerson || l.owner || "Krupal P.",
+            technology: l.technology || "",
+            accountRef: l.accountRef || "",
+            remark: l.remark || "",
+            stage: (l.stage as LeadStage) || "New Lead",
+            notes: l.remark
+              ? [{ id: `note-${l.id}`, text: l.remark, author: l.leadPerson || "Krupal", createdAt: l.createdAt || new Date().toISOString() }]
+              : [],
+            activities: [
+              {
+                id: `act-${l.id}`,
+                type: "creation" as ActivityType,
+                title: "Lead synchronized",
+                description: `Synchronized from CRM database.`,
+                author: l.owner || "System",
+                createdAt: l.createdAt || new Date().toISOString(),
+              },
+            ],
+            profileUrls: l.linkedin ? [l.linkedin] : [],
+            tags: [l.technology, l.visaStatus, l.location].filter(Boolean) as string[],
+            createdAt: l.createdAt || new Date().toISOString(),
+            updatedAt: l.updatedAt || new Date().toISOString(),
+          }));
+          setLeads(mapped);
+        }
+      })
+      .catch((err) => {
+        console.warn("Could not load leads from API, using default seed:", err);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   const getLead = useCallback(
     (id: string) => leads.find((l) => l.id === id),
     [leads]
@@ -228,6 +289,14 @@ export function LeadStoreProvider({ children }: { children: ReactNode }) {
         updatedAt: now,
       };
       setLeads((prev) => [lead, ...prev]);
+
+      // Async DB persistence
+      fetch("/api/crm/leads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(lead),
+      }).catch((err) => console.error("Error persisting new lead:", err));
+
       return lead;
     },
     []
@@ -239,10 +308,20 @@ export function LeadStoreProvider({ children }: { children: ReactNode }) {
         l.id === id ? { ...l, ...patch, updatedAt: new Date().toISOString() } : l
       )
     );
+
+    fetch(`/api/crm/leads/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    }).catch((err) => console.error("Error updating lead in DB:", err));
   }, []);
 
   const deleteLead = useCallback((id: string) => {
     setLeads((prev) => prev.filter((l) => l.id !== id));
+
+    fetch(`/api/crm/leads/${id}`, {
+      method: "DELETE",
+    }).catch((err) => console.error("Error deleting lead in DB:", err));
   }, []);
 
   const duplicateLead = useCallback(
@@ -298,6 +377,12 @@ export function LeadStoreProvider({ children }: { children: ReactNode }) {
         };
       })
     );
+
+    fetch(`/api/crm/leads/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ stage }),
+    }).catch((err) => console.error("Error updating lead stage in DB:", err));
   }, []);
 
   const addNote = useCallback((id: string, text: string, author: string) => {

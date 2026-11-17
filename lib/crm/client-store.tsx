@@ -5,6 +5,7 @@ import {
   useContext,
   useState,
   useCallback,
+  useEffect,
   type ReactNode,
 } from "react";
 import type { Client } from "@/lib/crm/sample-data";
@@ -60,6 +61,41 @@ export function useClientStore() {
 export function ClientStoreProvider({ children }: { children: ReactNode }) {
   const [clients, setClients] = useState<CrmClient[]>(INITIAL_CLIENTS);
 
+  useEffect(() => {
+    let mounted = true;
+    fetch("/api/crm/clients")
+      .then((res) => res.json())
+      .then((data) => {
+        if (!mounted) return;
+        if (data.success && Array.isArray(data.clients) && data.clients.length > 0) {
+          const mapped: CrmClient[] = data.clients.map((c: any) => ({
+            id: c.id,
+            name: c.name,
+            industry: c.industry || "Technology",
+            status: c.status || "Active",
+            openJobs: Number(c.openJobs) || 0,
+            owner: c.owner || "Krupal P.",
+            website: c.website || "",
+            contactPerson: c.contactName || "Contact Person",
+            contactEmail: c.contactEmail || "",
+            contactPhone: c.contactPhone || "",
+            city: "USA / Remote",
+            notes: c.notes ? [c.notes] : [],
+            createdAt: c.createdAt || new Date().toISOString(),
+            updatedAt: c.updatedAt || new Date().toISOString(),
+          }));
+          setClients(mapped);
+        }
+      })
+      .catch((err) => {
+        console.warn("Could not load clients from API:", err);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   const getClient = useCallback(
     (id: string) => clients.find((c) => c.id === id),
     [clients]
@@ -86,6 +122,13 @@ export function ClientStoreProvider({ children }: { children: ReactNode }) {
       };
 
       setClients((prev) => [newClient, ...prev]);
+
+      fetch("/api/crm/clients", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newClient),
+      }).catch((err) => console.error("Error creating client in DB:", err));
+
       return newClient;
     },
     []
@@ -103,10 +146,20 @@ export function ClientStoreProvider({ children }: { children: ReactNode }) {
           : c
       )
     );
+
+    fetch(`/api/crm/clients/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    }).catch((err) => console.error("Error updating client in DB:", err));
   }, []);
 
   const deleteClient = useCallback((id: string) => {
     setClients((prev) => prev.filter((c) => c.id !== id));
+
+    fetch(`/api/crm/clients/${id}`, {
+      method: "DELETE",
+    }).catch((err) => console.error("Error deleting client in DB:", err));
   }, []);
 
   return (
