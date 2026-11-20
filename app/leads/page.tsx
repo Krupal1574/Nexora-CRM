@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import Link from "next/link";
 import { CrmShell } from "@/components/crm-shell";
 import { useLeadStore, LEAD_STAGES, type CrmLead, type LeadStage } from "@/lib/crm/lead-store";
@@ -16,6 +16,15 @@ const LEAD_PERSONS = ["Yatri", "Priya S.", "Rahul K.", "Amit D.", "Krupal P."];
 const SALES_PERSONS = ["Krupal P.", "Rahul K.", "Priya S.", "Amit D.", "Meera N."];
 const VISA_STATUSES = ["H1B", "OPT / CPT", "Green Card", "US Citizen", "PR", "Citizen", "Need Sponsorship", "Other"];
 
+function getVisaBadgeClass(visa?: string) {
+  if (!visa) return "visa-badge";
+  const v = visa.toLowerCase();
+  if (v.includes("opt") || v.includes("cpt") || v.includes("stem")) return "visa-badge opt";
+  if (v.includes("h1b") || v.includes("h-1b")) return "visa-badge h1b";
+  if (v.includes("gc") || v.includes("green") || v.includes("citizen") || v.includes("pr")) return "visa-badge gc";
+  return "visa-badge";
+}
+
 export default function LeadsPage() {
   const store = useLeadStore();
   const { show } = useToast();
@@ -28,6 +37,34 @@ export default function LeadsPage() {
   const [filterLocation, setFilterLocation] = useState<string>("All");
   const [sortBy, setSortBy] = useState<"date" | "name" | "technology">("date");
   const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  // Table horizontal slide-bar controller
+  const tableContainerRef = useRef<HTMLDivElement>(null);
+  const [scrollPct, setScrollPct] = useState(0);
+
+  const handleTableScroll = () => {
+    if (!tableContainerRef.current) return;
+    const { scrollLeft, scrollWidth, clientWidth } = tableContainerRef.current;
+    const maxScroll = scrollWidth - clientWidth;
+    if (maxScroll <= 0) {
+      setScrollPct(0);
+      return;
+    }
+    setScrollPct(Math.min(100, Math.max(0, Math.round((scrollLeft / maxScroll) * 100))));
+  };
+
+  const handleSlideChange = (pct: number) => {
+    if (!tableContainerRef.current) return;
+    const { scrollWidth, clientWidth } = tableContainerRef.current;
+    const maxScroll = scrollWidth - clientWidth;
+    tableContainerRef.current.scrollLeft = (pct / 100) * maxScroll;
+    setScrollPct(pct);
+  };
+
+  const scrollByAmount = (amount: number) => {
+    if (!tableContainerRef.current) return;
+    tableContainerRef.current.scrollBy({ left: amount, behavior: "smooth" });
+  };
 
   // Create modal state with exact staffing fields
   const [showCreate, setShowCreate] = useState(false);
@@ -304,7 +341,7 @@ export default function LeadsPage() {
 
       {/* List View */}
       {view === "list" && (
-        <div className="card tbl">
+        <div className="table-card">
           {filtered.length === 0 ? (
             <div className="empty-state">
               <span className="big">◎</span>
@@ -312,127 +349,260 @@ export default function LeadsPage() {
               <p>Try adjusting your filters or create a new lead.</p>
             </div>
           ) : (
-            <table>
-              <thead>
-                <tr>
-                  <th style={{ width: 36 }}>
-                    <input
-                      type="checkbox"
-                      checked={selected.size === filtered.length && filtered.length > 0}
-                      onChange={toggleSelectAll}
-                      style={{ width: "auto" }}
-                    />
-                  </th>
-                  <th>Date</th>
-                  <th>Candidate Name</th>
-                  <th>Technology / Domain</th>
-                  <th>Location &amp; Visa</th>
-                  <th>Contact Details</th>
-                  <th>Lead Type</th>
-                  <th>Lead / Sales Person</th>
-                  <th>Stage</th>
-                  <th style={{ textAlign: "right" }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((lead) => (
-                  <tr key={lead.id}>
-                    <td>
-                      <input
-                        type="checkbox"
-                        checked={selected.has(lead.id)}
-                        onChange={() => toggleSelect(lead.id)}
-                        style={{ width: "auto" }}
-                      />
-                    </td>
-                    <td style={{ whiteSpace: "nowrap", fontSize: 12, color: "var(--mu)" }}>
-                      {lead.date || lead.createdAt.split("T")[0]}
-                    </td>
-                    <td>
-                      <Link href={`/leads/${lead.id}`} style={{ display: "flex", alignItems: "center", gap: 8, textDecoration: "none", color: "inherit" }}>
-                        <span className="av">{getInitials(lead.name)}</span>
-                        <div>
-                          <span style={{ fontWeight: 600 }}>{lead.name}</span>
-                          {lead.experience && (
-                            <small style={{ color: "var(--mu)", display: "block" }}>{lead.experience}</small>
-                          )}
-                        </div>
-                      </Link>
-                    </td>
-                    <td>
-                      <b>{lead.technology || lead.company || "—"}</b>
-                      {lead.accountRef && (
-                        <small style={{ color: "var(--mu)", display: "block" }}>Ref: {lead.accountRef}</small>
-                      )}
-                    </td>
-                    <td>
-                      <div>📍 {lead.location || "USA"}</div>
-                      {lead.visaStatus && (
-                        <span className="pill" style={{ fontSize: 11, padding: "2px 6px", marginTop: 2 }}>
-                          {lead.visaStatus}
-                        </span>
-                      )}
-                    </td>
-                    <td>
-                      <div style={{ fontSize: 13 }}>📞 {lead.phone || "—"}</div>
-                      <small style={{ color: "var(--mu)" }}>✉ {lead.email || "—"}</small>
-                    </td>
-                    <td>
-                      <span className={`pill ${getPillClass(lead.leadType || lead.temperature)}`}>
-                        {lead.leadType || lead.temperature}
+            <>
+              <div
+                ref={tableContainerRef}
+                onScroll={handleTableScroll}
+                className="table-scroll-wrapper"
+              >
+                <table className="leads-pro-table">
+                  <thead>
+                    <tr>
+                      <th style={{ width: 48, minWidth: 48, textAlign: "center" }}>
+                        <input
+                          type="checkbox"
+                          checked={selected.size === filtered.length && filtered.length > 0}
+                          onChange={toggleSelectAll}
+                          style={{ width: "auto", cursor: "pointer" }}
+                          aria-label="Select all leads"
+                        />
+                      </th>
+                      <th style={{ width: 110, minWidth: 110 }}>Date</th>
+                      <th style={{ width: 230, minWidth: 230 }}>Candidate Name</th>
+                      <th style={{ width: 190, minWidth: 190 }}>Technology / Domain</th>
+                      <th style={{ width: 140, minWidth: 140 }}>Location &amp; Visa</th>
+                      <th style={{ width: 240, minWidth: 240 }}>Contact Details</th>
+                      <th style={{ width: 120, minWidth: 120 }}>Lead Type</th>
+                      <th style={{ width: 190, minWidth: 190 }}>Lead / Sales Person</th>
+                      <th style={{ width: 180, minWidth: 180 }}>Stage</th>
+                      <th style={{ width: 130, minWidth: 130, textAlign: "right" }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtered.map((lead) => {
+                      const isSelected = selected.has(lead.id);
+                      return (
+                        <tr key={lead.id} className={isSelected ? "row-selected" : ""}>
+                          <td style={{ textAlign: "center" }}>
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => toggleSelect(lead.id)}
+                              style={{ width: "auto", cursor: "pointer" }}
+                              aria-label={`Select ${lead.name}`}
+                            />
+                          </td>
+                          <td style={{ whiteSpace: "nowrap", fontSize: 12.5, color: "var(--mu)", fontVariantNumeric: "tabular-nums" }}>
+                            {lead.date || lead.createdAt.split("T")[0]}
+                          </td>
+                          <td>
+                            <Link
+                              href={`/leads/${lead.id}`}
+                              style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none", color: "inherit" }}
+                            >
+                              <span className="av" style={{ background: "linear-gradient(135deg, #1F6FEB, #8a2be2)" }}>
+                                {getInitials(lead.name)}
+                              </span>
+                              <div>
+                                <span style={{ fontWeight: 700, color: "var(--tx)", fontSize: 13.5 }}>{lead.name}</span>
+                                {lead.experience ? (
+                                  <small style={{ color: "var(--mu)", display: "block", fontSize: 11.5, marginTop: 2 }}>
+                                    💼 {lead.experience}
+                                  </small>
+                                ) : (
+                                  <small style={{ color: "var(--mu)", display: "block", fontSize: 11.5, marginTop: 2 }}>
+                                    Recruitment Lead
+                                  </small>
+                                )}
+                              </div>
+                            </Link>
+                          </td>
+                          <td>
+                            <div style={{ fontWeight: 600, color: "var(--tx)" }}>
+                              {lead.technology || lead.company || "General Tech"}
+                            </div>
+                            {lead.accountRef && (
+                              <small style={{ color: "var(--mu)", display: "block", fontSize: 11.5, marginTop: 2 }}>
+                                Ref: {lead.accountRef}
+                              </small>
+                            )}
+                          </td>
+                          <td>
+                            <div style={{ display: "flex", alignItems: "center", gap: 4, fontWeight: 500 }}>
+                              <span>📍</span> {lead.location || "USA"}
+                            </div>
+                            {lead.visaStatus && (
+                              <div style={{ marginTop: 4 }}>
+                                <span className={getVisaBadgeClass(lead.visaStatus)}>
+                                  {lead.visaStatus}
+                                </span>
+                              </div>
+                            )}
+                          </td>
+                          <td>
+                            {lead.phone ? (
+                              <a href={`tel:${lead.phone}`} className="contact-link">
+                                <span style={{ color: "var(--or)" }}>📞</span> {lead.phone}
+                              </a>
+                            ) : (
+                              <span style={{ color: "var(--mu)", fontSize: 12 }}>📞 —</span>
+                            )}
+                            {lead.email ? (
+                              <a
+                                href={`mailto:${lead.email}`}
+                                className="contact-link"
+                                style={{ marginTop: 4, fontSize: 12, color: "var(--mu)" }}
+                                title={lead.email}
+                              >
+                                <span>✉</span>
+                                <span style={{ maxWidth: 190, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                  {lead.email}
+                                </span>
+                              </a>
+                            ) : (
+                              <span style={{ color: "var(--mu)", fontSize: 12, display: "block", marginTop: 4 }}>
+                                ✉ —
+                              </span>
+                            )}
+                          </td>
+                          <td>
+                            <span className={`pill ${getPillClass(lead.leadType || lead.temperature)}`} style={{ whiteSpace: "nowrap" }}>
+                              {lead.leadType || lead.temperature || "Cold Lead"}
+                            </span>
+                          </td>
+                          <td>
+                            <div style={{ fontSize: 12 }}>
+                              <span style={{ color: "var(--mu)" }}>Sourcer:</span> <b>{lead.leadPerson || "Yatri"}</b>
+                            </div>
+                            <div style={{ fontSize: 12, color: "var(--mu)", marginTop: 2 }}>
+                              <span>Sales:</span> <b style={{ color: "var(--tx)" }}>{lead.salesPerson || lead.owner || "Krupal P."}</b>
+                            </div>
+                          </td>
+                          <td>
+                            <div style={{ position: "relative", display: "inline-block" }}>
+                              <select
+                                value={lead.stage}
+                                onChange={(e) => {
+                                  const newStage = e.target.value as LeadStage;
+                                  store.changeStage(lead.id, newStage, "Krupal P.");
+                                  show(`Stage updated to "${newStage}" for ${lead.name}`);
+                                }}
+                                className={`pill ${getPillClass(lead.stage)}`}
+                                style={{
+                                  border: "1px solid var(--bd)",
+                                  cursor: "pointer",
+                                  fontWeight: 700,
+                                  fontSize: 12,
+                                  padding: "5px 24px 5px 10px",
+                                  appearance: "none",
+                                  WebkitAppearance: "none",
+                                  backgroundImage: "url(\"data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e\")",
+                                  backgroundRepeat: "no-repeat",
+                                  backgroundPosition: "right 6px center",
+                                  backgroundSize: "12px",
+                                  width: "auto",
+                                  whiteSpace: "nowrap",
+                                }}
+                                title="Click to update lead stage"
+                              >
+                                {LEAD_STAGES.map((s) => (
+                                  <option key={s} value={s} style={{ color: "var(--tx)", background: "var(--card)" }}>
+                                    {s}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          </td>
+                          <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                            <div style={{ display: "inline-flex", gap: 5 }}>
+                              <Link
+                                href={`/leads/${lead.id}`}
+                                className="btn ghost"
+                                style={{ padding: "5px 10px", fontSize: 12, textDecoration: "none" }}
+                              >
+                                View
+                              </Link>
+                              <button
+                                className="btn ghost"
+                                style={{ padding: "5px 8px", fontSize: 12 }}
+                                onClick={() => handleDuplicate(lead)}
+                                title="Duplicate Lead"
+                              >
+                                ⧉
+                              </button>
+                              <button
+                                className="btn ghost"
+                                style={{ padding: "5px 8px", fontSize: 12, color: "var(--bad)" }}
+                                onClick={() => handleDelete(lead)}
+                                title="Delete Lead"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Dedicated Slide Bar at the bottom */}
+              <div className="table-footer-slide-bar">
+                <div className="slide-bar-info">
+                  <span className="slide-bar-counter">
+                    {selected.size > 0 ? (
+                      <span style={{ color: "var(--or)" }}>
+                        <b>{selected.size}</b> of {filtered.length} leads selected
                       </span>
-                    </td>
-                    <td>
-                      <div style={{ fontSize: 12 }}>
-                        <b>Lead:</b> {lead.leadPerson || "Yatri"}
-                      </div>
-                      <div style={{ fontSize: 12, color: "var(--mu)" }}>
-                        <b>Sales:</b> {lead.salesPerson || lead.owner}
-                      </div>
-                    </td>
-                    <td>
-                      <select
-                        value={lead.stage}
-                        onChange={(e) => {
-                          const newStage = e.target.value as LeadStage;
-                          store.changeStage(lead.id, newStage, "Krupal P.");
-                          show(`Stage updated to "${newStage}" for ${lead.name}`);
-                        }}
-                        className={`pill ${getPillClass(lead.stage)}`}
-                        style={{
-                          border: "none",
-                          cursor: "pointer",
-                          fontWeight: 600,
-                          fontSize: 12,
-                          padding: "4px 8px",
-                          width: "auto",
-                        }}
-                        title="Click to update lead stage"
-                      >
-                        {LEAD_STAGES.map((s) => (
-                          <option key={s} value={s} style={{ color: "var(--fg)", background: "var(--card)" }}>
-                            {s}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                    <td style={{ textAlign: "right" }}>
-                      <div style={{ display: "inline-flex", gap: 4 }}>
-                        <Link href={`/leads/${lead.id}`} className="btn ghost" style={{ padding: "5px 8px", fontSize: 12, textDecoration: "none" }}>
-                          View
-                        </Link>
-                        <button className="btn ghost" style={{ padding: "5px 8px", fontSize: 12 }} onClick={() => handleDuplicate(lead)} title="Duplicate">
-                          ⧉
-                        </button>
-                        <button className="btn ghost" style={{ padding: "5px 8px", fontSize: 12, color: "var(--bad)" }} onClick={() => handleDelete(lead)} title="Delete">
-                          ✕
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    ) : (
+                      <span>
+                        Showing <b>{filtered.length}</b> leads • 10 columns
+                      </span>
+                    )}
+                  </span>
+                  <span className="slide-bar-hint">
+                    ↔ Slide horizontally to view all columns
+                  </span>
+                </div>
+
+                <div className="slide-bar-controls">
+                  <button
+                    type="button"
+                    className="slide-btn"
+                    onClick={() => scrollByAmount(-350)}
+                    title="Slide table left"
+                    disabled={scrollPct <= 0}
+                  >
+                    ◀ Slide Left
+                  </button>
+
+                  <div className="slide-track-wrapper">
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      value={scrollPct}
+                      onChange={(e) => handleSlideChange(Number(e.target.value))}
+                      className="table-range-slider"
+                      title="Drag to slide across columns"
+                      aria-label="Table horizontal scroll slider"
+                    />
+                    <span className="slide-pct-label">{scrollPct}%</span>
+                  </div>
+
+                  <button
+                    type="button"
+                    className="slide-btn"
+                    onClick={() => scrollByAmount(350)}
+                    title="Slide table right"
+                    disabled={scrollPct >= 100}
+                  >
+                    Slide Right ▶
+                  </button>
+                </div>
+              </div>
+            </>
           )}
         </div>
       )}

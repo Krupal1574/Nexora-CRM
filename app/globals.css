@@ -261,8 +261,30 @@ button:disabled { cursor: not-allowed; opacity: 0.55; }
   min-width: 160px;
 }
 
-/* ─── Tables ─── */
-.tbl { overflow-x: auto; }
+/* ─── Tables & Slide Bars ─── */
+.tbl {
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--or) rgba(0, 0, 0, 0.2);
+  -webkit-overflow-scrolling: touch;
+}
+.tbl::-webkit-scrollbar {
+  height: 10px;
+}
+.tbl::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.12);
+  border-radius: 99px;
+}
+.tbl::-webkit-scrollbar-thumb {
+  background: var(--or);
+  border-radius: 99px;
+  border: 2px solid var(--card);
+}
+.tbl::-webkit-scrollbar-thumb:hover {
+  background: #ff9838;
+}
+
 table { width: 100%; border-collapse: collapse; min-width: 620px; }
 th {
   text-align: left;
@@ -273,6 +295,247 @@ th {
 }
 th, td { padding: 11px 10px; border-bottom: 1px solid var(--bd); }
 tr:last-child td { border: 0; }
+
+/* ─── Professional Table Card & Horizontal Slide Bar ─── */
+.table-card {
+  background: var(--card);
+  border: 1px solid var(--bd);
+  border-radius: var(--radius);
+  padding: 0;
+  overflow: hidden;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
+}
+
+.table-scroll-wrapper {
+  position: relative;
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--or) rgba(0, 0, 0, 0.2);
+  -webkit-overflow-scrolling: touch;
+}
+
+.table-scroll-wrapper::-webkit-scrollbar {
+  height: 11px;
+}
+.table-scroll-wrapper::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.18);
+  border-top: 1px solid var(--bd);
+}
+.table-scroll-wrapper::-webkit-scrollbar-thumb {
+  background: var(--or);
+  border-radius: 99px;
+  border: 2px solid var(--card);
+}
+.table-scroll-wrapper::-webkit-scrollbar-thumb:hover {
+  background: #ff9838;
+}
+
+.leads-pro-table {
+  width: 100%;
+  min-width: 1560px;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13px;
+}
+
+.leads-pro-table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--card);
+  z-index: 4;
+  padding: 14px 14px;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--mu);
+  text-transform: uppercase;
+  border-bottom: 2px solid var(--bd);
+  white-space: nowrap;
+}
+
+.leads-pro-table tbody td {
+  padding: 13px 14px;
+  border-bottom: 1px solid var(--bd);
+  vertical-align: middle;
+  transition: background 0.12s ease;
+}
+
+.leads-pro-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.leads-pro-table tbody tr:hover td {
+  background: rgba(245, 130, 32, 0.04);
+}
+
+.leads-pro-table tbody tr.row-selected td {
+  background: rgba(245, 130, 32, 0.10) !important;
+}
+
+/* Slide Bar Bottom Controller */
+.table-footer-slide-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 18px;
+  background: var(--bg);
+  border-top: 1px solid var(--bd);
+  flex-wrap: wrap;
+}
+
+.slide-bar-info {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 13px;
+  color: var(--mu);
+}
+
+.slide-bar-hint {
+  font-size: 12px;
+  color: var(--mu);
+  opacity: 0.85;
+}
+
+.slide-bar-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  max-width: 540px;
+  justify-content: flex-end;
+}
+
+.slide-btn {
+  background: var(--card);
+  border: 1px solid var(--bd);
+  color: var(--tx);
+  border-radius: var(--radius-sm);
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.slide-btn:hover:not(:disabled) {
+  border-color: var(--or);
+  color: var(--or);
+}
+
+.slide-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.slide-track-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 160px;
+}
+
+.table-range-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 8px;
+  border-radius: 99px;
+  background: rgba(0, 0, 0, 0.2);
+  outline: none;
+  border: 1px solid var(--bd);
+  cursor: pointer;
+  padding: 0;
+}
+
+.table-range-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--or);
+  cursor: pointer;
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.45);
+  transition: transform 0.1s ease;
+}
+
+.table-range-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.18);
+  background: #ff9838;
+}
+
+.table-range-slider::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--or);
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.45);
+}
+
+.slide-pct-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--mu);
+  min-width: 34px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Contact and Meta items */
+.contact-link {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--tx);
+  text-decoration: none;
+  font-size: 12.5px;
+  transition: color 0.12s;
+}
+.contact-link:hover {
+  color: var(--or);
+  text-decoration: underline;
+}
+
+.visa-badge {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  background: rgba(31, 111, 235, 0.14);
+  color: #58a6ff;
+  border: 1px solid rgba(31, 111, 235, 0.25);
+}
+
+.visa-badge.opt {
+  background: rgba(31, 157, 107, 0.14);
+  color: #3fb950;
+  border-color: rgba(31, 157, 107, 0.25);
+}
+
+.visa-badge.h1b {
+  background: rgba(245, 130, 32, 0.14);
+  color: #ff9838;
+  border-color: rgba(245, 130, 32, 0.25);
+}
+
+.visa-badge.gc {
+  background: rgba(163, 113, 247, 0.14);
+  color: #bc8cff;
+  border-color: rgba(163, 113, 247, 0.25);
+}
 
 /* ─── Avatar ─── */
 .av {
