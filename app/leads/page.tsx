@@ -12,8 +12,8 @@ type ViewMode = "list" | "kanban";
 
 const LEAD_TYPES = ["Cold Lead", "Warm Lead", "Hot Lead"];
 const SOURCES = ["Linkedin Resume", "Referral", "Website", "Cold outreach", "Job Portal", "Staffing Event", "Other"];
-const LEAD_PERSONS = ["Yatri", "Priya S.", "Rahul K.", "Amit D.", "Krupal P."];
-const SALES_PERSONS = ["Krupal P.", "Rahul K.", "Priya S.", "Amit D.", "Meera N."];
+const LEAD_PERSONS = ["Yatri", "Krupal P.", "Support Admin", "Priya S.", "Rahul K.", "Amit D.", "Other"];
+const SALES_PERSONS = ["Krupal P.", "Support Admin", "Rahul K.", "Priya S.", "Amit D.", "Meera N.", "Yatri"];
 const VISA_STATUSES = ["H1B", "OPT / CPT", "Green Card", "US Citizen", "PR", "Citizen", "Need Sponsorship", "Other"];
 
 function getVisaBadgeClass(visa?: string) {
@@ -187,6 +187,53 @@ export default function LeadsPage() {
     show(`Lead "${created.name}" created successfully.`);
   };
 
+  // Bulk assignment state
+  const [showBulkAssign, setShowBulkAssign] = useState(false);
+  const [bulkSalesPerson, setBulkSalesPerson] = useState("Krupal P.");
+  const [bulkLeadPerson, setBulkLeadPerson] = useState("Yatri");
+
+  const handleAssignSalesPerson = (leadId: string, salesPerson: string) => {
+    store.updateLead(leadId, { salesPerson, owner: salesPerson });
+    store.addActivity(leadId, {
+      type: "assignment",
+      title: "Sales Owner assigned",
+      description: `Assigned sales owner to ${salesPerson}.`,
+      author: "Support Admin",
+    });
+    show(`Lead assigned to ${salesPerson}.`);
+  };
+
+  const handleAssignLeadPerson = (leadId: string, leadPerson: string) => {
+    store.updateLead(leadId, { leadPerson });
+    store.addActivity(leadId, {
+      type: "assignment",
+      title: "Lead Sourcer assigned",
+      description: `Assigned lead sourcer to ${leadPerson}.`,
+      author: "Support Admin",
+    });
+    show(`Lead sourcer updated to ${leadPerson}.`);
+  };
+
+  const handleExecuteBulkAssign = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (selected.size === 0) return;
+    selected.forEach((id) => {
+      store.updateLead(id, {
+        salesPerson: bulkSalesPerson,
+        owner: bulkSalesPerson,
+        leadPerson: bulkLeadPerson,
+      });
+      store.addActivity(id, {
+        type: "assignment",
+        title: "Bulk lead assignment",
+        description: `Assigned to Sales: ${bulkSalesPerson}, Sourcer: ${bulkLeadPerson}.`,
+        author: "Support Admin",
+      });
+    });
+    show(`Assigned ${selected.size} lead(s) to ${bulkSalesPerson} (Sourcer: ${bulkLeadPerson}).`);
+    setShowBulkAssign(false);
+  };
+
   const handleBulkDelete = async () => {
     if (selected.size === 0) return;
     const ok = await confirm(`Delete ${selected.size} selected lead(s)? This cannot be undone.`);
@@ -333,9 +380,23 @@ export default function LeadsPage() {
           ⬇ Export CSV
         </button>
         {selected.size > 0 && (
-          <button className="btn" style={{ background: "var(--bad)" }} onClick={handleBulkDelete}>
-            Delete {selected.size} selected
-          </button>
+          <div style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
+            <button
+              className="btn navy"
+              onClick={() => setShowBulkAssign(true)}
+              title="Assign selected leads to user"
+            >
+              👤 Assign {selected.size} selected
+            </button>
+            <button
+              className="btn"
+              style={{ background: "var(--bad)" }}
+              onClick={handleBulkDelete}
+              title="Delete selected leads"
+            >
+              Delete {selected.size} selected
+            </button>
+          </div>
         )}
       </div>
 
@@ -470,12 +531,55 @@ export default function LeadsPage() {
                               {lead.leadType || lead.temperature || "Cold Lead"}
                             </span>
                           </td>
-                          <td>
-                            <div style={{ fontSize: 12 }}>
-                              <span style={{ color: "var(--mu)" }}>Sourcer:</span> <b>{lead.leadPerson || "Yatri"}</b>
-                            </div>
-                            <div style={{ fontSize: 12, color: "var(--mu)", marginTop: 2 }}>
-                              <span>Sales:</span> <b style={{ color: "var(--tx)" }}>{lead.salesPerson || lead.owner || "Krupal P."}</b>
+                          <td style={{ minWidth: 200 }}>
+                            <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                <span style={{ color: "var(--mu)", fontSize: 11, minWidth: 46 }}>Sourcer:</span>
+                                <select
+                                  value={lead.leadPerson || "Yatri"}
+                                  onChange={(e) => handleAssignLeadPerson(lead.id, e.target.value)}
+                                  style={{
+                                    fontSize: 11.5,
+                                    padding: "3px 6px",
+                                    width: "auto",
+                                    borderRadius: 6,
+                                    background: "var(--bg)",
+                                    border: "1px solid var(--bd)",
+                                    cursor: "pointer",
+                                  }}
+                                  title="Assign Lead Sourcer"
+                                >
+                                  {LEAD_PERSONS.map((p) => (
+                                    <option key={p} value={p}>
+                                      {p}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                <span style={{ color: "var(--mu)", fontSize: 11, minWidth: 46 }}>Sales:</span>
+                                <select
+                                  value={lead.salesPerson || lead.owner || "Krupal P."}
+                                  onChange={(e) => handleAssignSalesPerson(lead.id, e.target.value)}
+                                  style={{
+                                    fontSize: 11.5,
+                                    padding: "3px 6px",
+                                    width: "auto",
+                                    borderRadius: 6,
+                                    background: "var(--bg)",
+                                    border: "1px solid var(--bd)",
+                                    fontWeight: 700,
+                                    cursor: "pointer",
+                                  }}
+                                  title="Assign Sales Person / Owner"
+                                >
+                                  {SALES_PERSONS.map((p) => (
+                                    <option key={p} value={p}>
+                                      {p}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
                             </div>
                           </td>
                           <td>
@@ -914,6 +1018,60 @@ export default function LeadsPage() {
               </button>
               <button type="submit" className="btn">
                 Create Lead
+              </button>
+            </div>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Bulk Assign Modal */}
+      <Modal open={showBulkAssign} onClose={() => setShowBulkAssign(false)} title={`Assign ${selected.size} Selected Lead(s)`}>
+        <form onSubmit={handleExecuteBulkAssign}>
+          <p style={{ color: "var(--mu)", fontSize: 13, margin: "0 0 16px" }}>
+            Reassign ownership and sourcing accountability for all <b>{selected.size}</b> selected candidate leads.
+          </p>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <div>
+              <label style={{ fontSize: 12.5, fontWeight: 700, display: "block", marginBottom: 6 }}>
+                Assign Sales Person / Account Owner
+              </label>
+              <select
+                value={bulkSalesPerson}
+                onChange={(e) => setBulkSalesPerson(e.target.value)}
+                style={{ width: "100%", padding: "10px", fontSize: 13.5 }}
+              >
+                {SALES_PERSONS.map((p) => (
+                  <option key={p} value={p}>
+                    {p}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label style={{ fontSize: 12.5, fontWeight: 700, display: "block", marginBottom: 6 }}>
+                Assign Lead Sourcer (Recruiter)
+              </label>
+              <select
+                value={bulkLeadPerson}
+                onChange={(e) => setBulkLeadPerson(e.target.value)}
+                style={{ width: "100%", padding: "10px", fontSize: 13.5 }}
+              >
+                {LEAD_PERSONS.map((p) => (
+                  <option key={p} value={p}>
+                    {p}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 12 }}>
+              <button type="button" className="btn ghost" onClick={() => setShowBulkAssign(false)}>
+                Cancel
+              </button>
+              <button type="submit" className="btn navy">
+                Confirm Assignment ({selected.size})
               </button>
             </div>
           </div>

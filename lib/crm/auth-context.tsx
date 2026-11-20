@@ -22,7 +22,16 @@ export function isValidNexoraEmail(email: string): boolean {
   return ALLOWED_DOMAINS.some((domain) => lower.endsWith(domain));
 }
 
+/** Pre-configured corporate accounts */
 export const DEMO_USERS: AuthUser[] = [
+  {
+    id: "u-support-admin",
+    name: "Support Admin",
+    email: "support@nexorastaffingllp.com",
+    role: "Owner / Admin",
+    avatarInitials: "SA",
+    authProvider: "credentials",
+  },
   {
     id: "u-krupal",
     name: "Krupal P.",
@@ -60,6 +69,7 @@ export const DEMO_USERS: AuthUser[] = [
 interface AuthContextType {
   user: AuthUser | null;
   isLoading: boolean;
+  isAdmin: boolean;
   login: (email: string, password?: string) => { success: boolean; error?: string };
   loginWithGoogle: (email: string, name?: string) => { success: boolean; error?: string };
   loginAs: (user: AuthUser) => void;
@@ -69,6 +79,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType>({
   user: null,
   isLoading: true,
+  isAdmin: false,
   login: () => ({ success: false }),
   loginWithGoogle: () => ({ success: false }),
   loginAs: () => {},
@@ -133,6 +144,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       };
     }
 
+    // Support Admin account via Google
+    if (
+      trimmedEmail === "support@nexorastaffingllp.com" ||
+      trimmedEmail === "support@nexorastafingllp.com"
+    ) {
+      const adminUser: AuthUser = {
+        id: "u-support-admin",
+        name: "Support Admin",
+        email: "support@nexorastaffingllp.com",
+        role: "Owner / Admin",
+        avatarInitials: "SA",
+        authProvider: "google",
+      };
+      loginAs(adminUser);
+      return { success: true };
+    }
+
     // Check if matching predefined user
     const matched = DEMO_USERS.find(
       (u) => u.email.toLowerCase() === trimmedEmail
@@ -187,7 +215,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       };
     }
 
-    // Check if matching predefined user
+    // Specific password verification for Support Admin
+    if (
+      trimmedEmail === "support@nexorastaffingllp.com" ||
+      trimmedEmail === "support@nexorastafingllp.com"
+    ) {
+      if (password !== "Krupal@2921#6965") {
+        return {
+          success: false,
+          error: "Incorrect password for Admin account support@nexorastaffingllp.com.",
+        };
+      }
+      const adminUser: AuthUser = {
+        id: "u-support-admin",
+        name: "Support Admin",
+        email: "support@nexorastaffingllp.com",
+        role: "Owner / Admin",
+        avatarInitials: "SA",
+        authProvider: "credentials",
+      };
+      loginAs(adminUser);
+      return { success: true };
+    }
+
+    // Check if matching other predefined users
     const matched = DEMO_USERS.find(
       (u) => u.email.toLowerCase() === trimmedEmail
     );
@@ -231,8 +282,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     router.push("/login");
   };
 
+  const isAdmin = user?.role === "Owner / Admin";
+
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, loginWithGoogle, loginAs, logout }}>
+    <AuthContext.Provider value={{ user, isLoading, isAdmin, login, loginWithGoogle, loginAs, logout }}>
       {children}
     </AuthContext.Provider>
   );

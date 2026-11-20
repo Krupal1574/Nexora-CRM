@@ -600,11 +600,38 @@ export default function LeadDetailPage() {
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
             <div>
               <label style={{ fontSize: 12, fontWeight: 600, display: "block", marginBottom: 4 }}>Lead Person (Sourcer)</label>
-              <input value={editForm.leadPerson || ""} onChange={(e) => setEditForm({ ...editForm, leadPerson: e.target.value })} />
+              <input
+                list="lead-persons-list"
+                value={editForm.leadPerson || ""}
+                onChange={(e) => setEditForm({ ...editForm, leadPerson: e.target.value })}
+                placeholder="Assign Sourcer"
+              />
+              <datalist id="lead-persons-list">
+                <option value="Yatri" />
+                <option value="Krupal P." />
+                <option value="Support Admin" />
+                <option value="Priya S." />
+                <option value="Rahul K." />
+                <option value="Amit D." />
+              </datalist>
             </div>
             <div>
               <label style={{ fontSize: 12, fontWeight: 600, display: "block", marginBottom: 4 }}>Sales Person (Owner)</label>
-              <input value={editForm.salesPerson || ""} onChange={(e) => setEditForm({ ...editForm, salesPerson: e.target.value })} />
+              <input
+                list="sales-persons-list"
+                value={editForm.salesPerson || ""}
+                onChange={(e) => setEditForm({ ...editForm, salesPerson: e.target.value })}
+                placeholder="Assign Owner"
+              />
+              <datalist id="sales-persons-list">
+                <option value="Krupal P." />
+                <option value="Support Admin" />
+                <option value="Rahul K." />
+                <option value="Priya S." />
+                <option value="Amit D." />
+                <option value="Meera N." />
+                <option value="Yatri" />
+              </datalist>
             </div>
           </div>
 
