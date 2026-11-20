@@ -9,43 +9,59 @@ export interface AuthUser {
   email: string;
   role: "Owner / Admin" | "Senior Recruiter" | "Account Manager" | "Lead Sourcer" | "Recruiter" | "Viewer";
   avatarInitials: string;
+  authProvider?: "google" | "credentials";
+}
+
+/** Required corporate domains for Nexora CRM access */
+export const REQUIRED_DOMAIN = "@nexorastafingllp.com";
+export const ALLOWED_DOMAINS = ["@nexorastafingllp.com", "@nexorastaffingllp.com"];
+
+export function isValidNexoraEmail(email: string): boolean {
+  if (!email) return false;
+  const lower = email.trim().toLowerCase();
+  return ALLOWED_DOMAINS.some((domain) => lower.endsWith(domain));
 }
 
 export const DEMO_USERS: AuthUser[] = [
   {
     id: "u-krupal",
     name: "Krupal P.",
-    email: "krupal@nexora.com",
+    email: "krupal@nexorastafingllp.com",
     role: "Owner / Admin",
     avatarInitials: "KP",
+    authProvider: "google",
   },
   {
     id: "u-yatri",
     name: "Yatri",
-    email: "yatri@nexora.com",
+    email: "yatri@nexorastafingllp.com",
     role: "Lead Sourcer",
     avatarInitials: "YS",
+    authProvider: "google",
   },
   {
     id: "u-priya",
     name: "Priya S.",
-    email: "priya@nexora.com",
+    email: "priya@nexorastafingllp.com",
     role: "Senior Recruiter",
     avatarInitials: "PS",
+    authProvider: "google",
   },
   {
     id: "u-rahul",
     name: "Rahul K.",
-    email: "rahul@nexora.com",
+    email: "rahul@nexorastafingllp.com",
     role: "Account Manager",
     avatarInitials: "RK",
+    authProvider: "google",
   },
 ];
 
 interface AuthContextType {
   user: AuthUser | null;
   isLoading: boolean;
-  login: (email: string, password?: string) => boolean;
+  login: (email: string, password?: string) => { success: boolean; error?: string };
+  loginWithGoogle: (email: string, name?: string) => { success: boolean; error?: string };
   loginAs: (user: AuthUser) => void;
   logout: () => void;
 }
@@ -53,7 +69,8 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType>({
   user: null,
   isLoading: true,
-  login: () => false,
+  login: () => ({ success: false }),
+  loginWithGoogle: () => ({ success: false }),
   loginAs: () => {},
   logout: () => {},
 });
@@ -101,42 +118,110 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAuthCookie(targetUser);
   };
 
-  const login = (email: string, password?: string): boolean => {
-    if (!email || !email.includes("@")) return false;
+  const loginWithGoogle = (email: string, customName?: string): { success: boolean; error?: string } => {
+    if (!email || !email.includes("@")) {
+      return { success: false, error: "Please provide a valid Google account email." };
+    }
 
-    // Check if matching demo user
+    const trimmedEmail = email.trim().toLowerCase();
+
+    // Enforce required corporate domain
+    if (!isValidNexoraEmail(trimmedEmail)) {
+      return {
+        success: false,
+        error: `Access Denied: Only corporate Google accounts ending with ${REQUIRED_DOMAIN} are authorized to access Nexora CRM.`,
+      };
+    }
+
+    // Check if matching predefined user
     const matched = DEMO_USERS.find(
-      (u) => u.email.toLowerCase() === email.trim().toLowerCase()
+      (u) => u.email.toLowerCase() === trimmedEmail
+    );
+
+    if (matched) {
+      loginAs({ ...matched, authProvider: "google" });
+      return { success: true };
+    }
+
+    // Build user from Google account
+    const username = trimmedEmail.split("@")[0].replace(/[._]/g, " ");
+    const formattedName =
+      customName ||
+      username
+        .split(" ")
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(" ");
+
+    const initials =
+      formattedName
+        .split(" ")
+        .map((w) => w.charAt(0).toUpperCase())
+        .join("")
+        .slice(0, 2) || "NX";
+
+    const googleUser: AuthUser = {
+      id: `u-google-${Date.now()}`,
+      name: formattedName || "Google Workspace Member",
+      email: trimmedEmail,
+      role: "Recruiter",
+      avatarInitials: initials,
+      authProvider: "google",
+    };
+
+    loginAs(googleUser);
+    return { success: true };
+  };
+
+  const login = (email: string, password?: string): { success: boolean; error?: string } => {
+    if (!email || !email.includes("@")) {
+      return { success: false, error: "Please enter a valid work email address." };
+    }
+
+    const trimmedEmail = email.trim().toLowerCase();
+
+    // Enforce corporate domain
+    if (!isValidNexoraEmail(trimmedEmail)) {
+      return {
+        success: false,
+        error: `Access Restricted: Nexora CRM requires a corporate email ending with ${REQUIRED_DOMAIN}.`,
+      };
+    }
+
+    // Check if matching predefined user
+    const matched = DEMO_USERS.find(
+      (u) => u.email.toLowerCase() === trimmedEmail
     );
 
     if (matched) {
       loginAs(matched);
-      return true;
+      return { success: true };
     }
 
     // Custom user login
-    const namePart = email.split("@")[0].replace(/[._]/g, " ");
+    const namePart = trimmedEmail.split("@")[0].replace(/[._]/g, " ");
     const formattedName = namePart
       .split(" ")
       .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
       .join(" ");
 
-    const initials = namePart
-      .split(" ")
-      .map((w) => w.charAt(0).toUpperCase())
-      .join("")
-      .slice(0, 2) || "NX";
+    const initials =
+      namePart
+        .split(" ")
+        .map((w) => w.charAt(0).toUpperCase())
+        .join("")
+        .slice(0, 2) || "NX";
 
     const customUser: AuthUser = {
       id: `u-${Date.now()}`,
-      name: formattedName || "Nexora User",
-      email: email.trim(),
+      name: formattedName || "Nexora Staffing Member",
+      email: trimmedEmail,
       role: "Recruiter",
       avatarInitials: initials,
+      authProvider: "credentials",
     };
 
     loginAs(customUser);
-    return true;
+    return { success: true };
   };
 
   const logout = () => {
@@ -147,7 +232,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, loginAs, logout }}>
+    <AuthContext.Provider value={{ user, isLoading, login, loginWithGoogle, loginAs, logout }}>
       {children}
     </AuthContext.Provider>
   );
