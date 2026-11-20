@@ -1,6 +1,8 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { AuthProvider } from "@/lib/crm/auth-context";
+import { AuthGuard } from "@/components/auth-guard";
 import { ToastProvider } from "@/lib/crm/toast-context";
 import { LeadStoreProvider } from "@/lib/crm/lead-store";
 import { CandidateStoreProvider } from "@/lib/crm/candidate-store";
@@ -10,18 +12,22 @@ import { TaskStoreProvider } from "@/lib/crm/task-store";
 
 export function CrmProviders({ children }: { children: ReactNode }) {
   return (
-    <ToastProvider>
-      <LeadStoreProvider>
-        <CandidateStoreProvider>
-          <ClientStoreProvider>
-            <JobStoreProvider>
-              <TaskStoreProvider>
-                {children}
-              </TaskStoreProvider>
-            </JobStoreProvider>
-          </ClientStoreProvider>
-        </CandidateStoreProvider>
-      </LeadStoreProvider>
-    </ToastProvider>
+    <AuthProvider>
+      <AuthGuard>
+        <ToastProvider>
+          <LeadStoreProvider>
+            <CandidateStoreProvider>
+              <ClientStoreProvider>
+                <JobStoreProvider>
+                  <TaskStoreProvider>
+                    {children}
+                  </TaskStoreProvider>
+                </JobStoreProvider>
+              </ClientStoreProvider>
+            </CandidateStoreProvider>
+          </LeadStoreProvider>
+        </ToastProvider>
+      </AuthGuard>
+    </AuthProvider>
   );
 }

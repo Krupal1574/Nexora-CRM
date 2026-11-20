@@ -1,7 +1,9 @@
 "use client";
+
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
+import { useAuth } from "@/lib/crm/auth-context";
 
 const NAV_ITEMS = [
   { href: "/", icon: "▦", label: "Dashboard" },
@@ -25,6 +27,7 @@ const ADMIN_ITEMS = [
 export function CrmShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { user, logout } = useAuth();
 
   const toggleTheme = () => {
     const root = document.documentElement;
@@ -65,17 +68,65 @@ export function CrmShell({ children }: { children: React.ReactNode }) {
             </Link>
           ))}
         </nav>
+
+        {/* User Card at bottom of sidebar */}
+        {user && (
+          <div className="sidebar-user-card">
+            <div className="sidebar-user-avatar">{user.avatarInitials}</div>
+            <div className="sidebar-user-meta">
+              <span className="sidebar-user-name">{user.name}</span>
+              <span className="sidebar-user-role">{user.role}</span>
+            </div>
+            <button
+              onClick={logout}
+              className="sidebar-logout-btn"
+              title="Sign out of Nexora"
+              aria-label="Sign out"
+            >
+              ⎋
+            </button>
+          </div>
+        )}
       </aside>
+
       <div className="main-area">
         <header className="crm-header">
-          <button className="btn ghost burger-btn" onClick={() => setSidebarOpen(!sidebarOpen)} aria-label="Menu">☰</button>
+          <button
+            className="btn ghost burger-btn"
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            aria-label="Menu"
+          >
+            ☰
+          </button>
           <input className="crm-header-search" placeholder="Search leads, candidates, jobs…" readOnly />
-          <button className="btn ghost" onClick={toggleTheme} title="Toggle theme">◐</button>
-          <span className="av" style={{ margin: 0 }}>KP</span>
+          <button className="btn ghost" onClick={toggleTheme} title="Toggle theme">
+            ◐
+          </button>
+
+          {/* User Profile Badge & Quick Sign Out */}
+          {user ? (
+            <div className="header-user-badge">
+              <span className="av" style={{ margin: 0, background: "var(--or)" }}>
+                {user.avatarInitials}
+              </span>
+              <div className="header-user-info">
+                <span className="header-user-name">{user.name}</span>
+                <span className="header-user-role">{user.role}</span>
+              </div>
+              <button
+                onClick={logout}
+                className="btn ghost header-signout-btn"
+                title="Sign out of Nexora"
+              >
+                ⎋ Sign Out
+              </button>
+            </div>
+          ) : (
+            <span className="av" style={{ margin: 0 }}>KP</span>
+          )}
         </header>
-        <div className="main-content">
-          {children}
-        </div>
+
+        <div className="main-content">{children}</div>
       </div>
     </div>
   );
