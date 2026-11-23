@@ -22,6 +22,7 @@ function LoginForm() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -30,6 +31,18 @@ function LoginForm() {
   const [showGoogleModal, setShowGoogleModal] = useState(false);
   const [customGoogleEmail, setCustomGoogleEmail] = useState("");
   const [googleError, setGoogleError] = useState("");
+
+  /** Tap a team card → autofill email, focus password */
+  const handleSelectAccount = (u: AuthUser) => {
+    setEmail(u.email);
+    setPassword("");
+    setError("");
+    setTimeout(() => {
+      const el = document.getElementById("password");
+      if (el) el.focus();
+    }, 60);
+    show(`Selected ${u.name} — enter password to sign in.`);
+  };
 
   const handleCustomLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -170,14 +183,28 @@ function LoginForm() {
           </div>
 
           <div className="login-field">
-            <label htmlFor="password">Password</label>
+            <div className="login-pwd-header">
+              <label htmlFor="password">Password</label>
+              <button
+                type="button"
+                className="login-pwd-toggle"
+                onClick={() => setShowPassword(!showPassword)}
+              >
+                {showPassword ? "🙈 Hide" : "👁 Show"}
+              </button>
+            </div>
             <input
               id="password"
-              type="password"
-              placeholder="••••••••••••"
+              type={showPassword ? "text" : "password"}
+              placeholder="Enter your password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              required
             />
+            <div className="login-pwd-hints">
+              <span>Team: <code>Nexora@2026</code></span>
+              <span>Admin: <code>Krupal@2921#6965</code></span>
+            </div>
           </div>
 
           <div className="login-options">
@@ -199,31 +226,30 @@ function LoginForm() {
 
         {/* Divider */}
         <div className="login-divider">
-          <span>AUTHORIZED TEAM MEMBERS</span>
+          <span>QUICK SELECT ACCOUNT</span>
         </div>
 
-        {/* Quick Demo Logins */}
+        {/* Quick Account Select — just fills email, password still required */}
         <div className="login-quick-list">
-          {DEMO_USERS.map((u) => (
-            <button
-              key={u.id}
-              type="button"
-              className="login-quick-card"
-              onClick={() => {
-                loginAs(u);
-                show(`Signed in as ${u.name} (${u.email})`);
-                router.replace(redirectTarget);
-              }}
-              title={`Sign in as ${u.name}`}
-            >
-              <div className="login-quick-avatar">{u.avatarInitials}</div>
-              <div className="login-quick-details">
-                <b>{u.name}</b>
-                <span>{u.email}</span>
-              </div>
-              <span className="login-quick-arrow">→</span>
-            </button>
-          ))}
+          {DEMO_USERS.map((u) => {
+            const isSelected = email.toLowerCase() === u.email.toLowerCase();
+            return (
+              <button
+                key={u.id}
+                type="button"
+                className={`login-quick-card${isSelected ? " active" : ""}`}
+                onClick={() => handleSelectAccount(u)}
+                title={`Select ${u.name} — still requires password`}
+              >
+                <div className="login-quick-avatar">{u.avatarInitials}</div>
+                <div className="login-quick-details">
+                  <b>{u.name}</b>
+                  <span>{u.email}</span>
+                </div>
+                <span className="login-quick-arrow">{isSelected ? "✓" : "→"}</span>
+              </button>
+            );
+          })}
         </div>
 
         <div className="login-footer">
@@ -286,7 +312,7 @@ function LoginForm() {
             {/* Enter Custom Google Email */}
             <form onSubmit={handleCustomGoogleSubmit} style={{ marginTop: 16 }}>
               <label style={{ fontSize: 12, fontWeight: 600, color: "var(--mu)", display: "block", marginBottom: 6 }}>
-                Or enter another @nexorastafingllp.com Google account:
+                Or enter another {REQUIRED_DOMAIN} Google account:
               </label>
               <div style={{ display: "flex", gap: 8 }}>
                 <input

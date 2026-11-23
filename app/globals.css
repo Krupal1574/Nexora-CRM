@@ -921,36 +921,36 @@ tr:last-child td { border: 0; }
 
 .login-card {
   width: 100%;
-  max-width: 440px;
+  max-width: 460px;
   background: var(--card);
   border: 1px solid var(--bd);
-  border-radius: 18px;
-  padding: 32px 28px;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.18);
+  border-radius: 20px;
+  padding: 36px 32px 28px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.22);
 }
 
 .login-brand {
   text-align: center;
-  margin-bottom: 20px;
+  margin-bottom: 22px;
 }
 
 .login-logo-badge {
-  width: 48px;
-  height: 48px;
-  border-radius: 14px;
-  background: var(--or);
+  width: 52px;
+  height: 52px;
+  border-radius: 15px;
+  background: linear-gradient(135deg, var(--or), #e8700a);
   color: #fff;
-  font-size: 26px;
+  font-size: 28px;
   font-weight: 800;
   display: grid;
   place-items: center;
-  margin: 0 auto 12px;
-  box-shadow: 0 4px 14px rgba(245, 130, 32, 0.35);
+  margin: 0 auto 14px;
+  box-shadow: 0 6px 18px rgba(245, 130, 32, 0.4);
 }
 
 .login-brand h1 {
-  font-size: 24px;
-  margin: 0 0 4px;
+  font-size: 26px;
+  margin: 0 0 5px;
   font-weight: 800;
   letter-spacing: -0.02em;
 }
@@ -969,18 +969,18 @@ tr:last-child td { border: 0; }
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  padding: 8px 12px;
-  border-radius: 8px;
+  padding: 9px 14px;
+  border-radius: 10px;
   text-align: center;
-  margin-bottom: 20px;
+  margin-bottom: 22px;
 }
 
 .login-error-box {
   background: rgba(214, 69, 69, 0.12);
   border: 1px solid rgba(214, 69, 69, 0.25);
   color: #ff6b6b;
-  padding: 10px 12px;
-  border-radius: 8px;
+  padding: 10px 14px;
+  border-radius: 10px;
   font-size: 13px;
   margin-bottom: 16px;
   text-align: center;
@@ -989,7 +989,7 @@ tr:last-child td { border: 0; }
 .login-form {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 16px;
 }
 
 .login-field {
@@ -1000,13 +1000,64 @@ tr:last-child td { border: 0; }
 
 .login-field label {
   font-size: 12.5px;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--tx);
 }
 
 .login-field input {
-  padding: 11px 13px;
+  padding: 11px 14px;
   font-size: 14px;
+  border-radius: 10px;
+}
+
+/* Password header row: label + show/hide toggle */
+.login-pwd-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.login-pwd-header label {
+  margin-bottom: 0;
+}
+
+.login-pwd-toggle {
+  background: none;
+  border: none;
+  color: var(--or);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 0;
+  letter-spacing: 0.01em;
+  transition: opacity 0.15s;
+}
+
+.login-pwd-toggle:hover {
+  opacity: 0.8;
+}
+
+/* Password hint badges */
+.login-pwd-hints {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
+
+.login-pwd-hints span {
+  font-size: 11px;
+  color: var(--mu);
+}
+
+.login-pwd-hints code {
+  color: var(--or);
+  font-weight: 700;
+  font-size: 11px;
+  background: rgba(245, 130, 32, 0.08);
+  padding: 1px 5px;
+  border-radius: 4px;
 }
 
 .login-options {
@@ -1032,10 +1083,12 @@ tr:last-child td { border: 0; }
 
 .login-submit-btn {
   width: 100%;
-  padding: 12px;
-  font-size: 14px;
+  padding: 13px;
+  font-size: 14.5px;
+  font-weight: 700;
   justify-content: center;
   margin-top: 4px;
+  border-radius: 10px;
 }
 
 .login-divider {
@@ -1054,16 +1107,22 @@ tr:last-child td { border: 0; }
 }
 
 .login-divider span {
-  padding: 0 10px;
-  font-size: 11px;
+  padding: 0 12px;
+  font-size: 10.5px;
   font-weight: 700;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
 }
 
 .login-quick-list {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
+}
+
+@media (max-width: 480px) {
+  .login-quick-list {
+    grid-template-columns: 1fr;
+  }
 }
 
 .login-quick-card {
@@ -1073,10 +1132,10 @@ tr:last-child td { border: 0; }
   background: var(--bg);
   border: 1px solid var(--bd);
   border-radius: 10px;
-  padding: 8px 10px;
+  padding: 9px 10px;
   cursor: pointer;
   text-align: left;
-  transition: all 0.15s ease;
+  transition: all 0.18s ease;
 }
 
 .login-quick-card:hover {
@@ -1085,9 +1144,20 @@ tr:last-child td { border: 0; }
   background: var(--card);
 }
 
+.login-quick-card.active {
+  border-color: var(--or);
+  background: rgba(245, 130, 32, 0.07);
+  box-shadow: 0 0 0 2px rgba(245, 130, 32, 0.15);
+}
+
+.login-quick-card.active .login-quick-arrow {
+  color: var(--or);
+  font-weight: 800;
+}
+
 .login-quick-avatar {
-  width: 30px;
-  height: 30px;
+  width: 32px;
+  height: 32px;
   border-radius: 8px;
   background: var(--or);
   color: #fff;
@@ -1105,7 +1175,7 @@ tr:last-child td { border: 0; }
 
 .login-quick-details b {
   display: block;
-  font-size: 12px;
+  font-size: 12.5px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1122,7 +1192,8 @@ tr:last-child td { border: 0; }
 
 .login-quick-arrow {
   color: var(--mu);
-  font-size: 12px;
+  font-size: 13px;
+  transition: color 0.15s;
 }
 
 .login-footer {
@@ -1130,6 +1201,7 @@ tr:last-child td { border: 0; }
   text-align: center;
   font-size: 11px;
   color: var(--mu);
+  opacity: 0.7;
 }
 
 /* ─── Header & Sidebar User Profiles ─── */

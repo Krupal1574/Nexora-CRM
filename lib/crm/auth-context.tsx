@@ -215,15 +215,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       };
     }
 
+    // Common passwords
+    const COMMON_TEAM_PASSWORD = "Nexora@2026";
+    const ADMIN_PASSWORD = "Krupal@2921#6965";
+
+    // Validate password requirement
+    if (!password || !password.trim()) {
+      return {
+        success: false,
+        error: "Password is required to sign in.",
+      };
+    }
+
+    const trimmedPassword = password.trim();
+
     // Specific password verification for Support Admin
     if (
       trimmedEmail === "support@nexorastaffingllp.com" ||
       trimmedEmail === "support@nexorastafingllp.com"
     ) {
-      if (password !== "Krupal@2921#6965") {
+      if (trimmedPassword !== ADMIN_PASSWORD && trimmedPassword !== COMMON_TEAM_PASSWORD) {
         return {
           success: false,
-          error: "Incorrect password for Admin account support@nexorastaffingllp.com.",
+          error: "Incorrect password for Support Admin account.",
         };
       }
       const adminUser: AuthUser = {
@@ -236,6 +250,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       };
       loginAs(adminUser);
       return { success: true };
+    }
+
+    // Common password verification for all other team members
+    if (trimmedPassword !== COMMON_TEAM_PASSWORD) {
+      return {
+        success: false,
+        error: "Incorrect password. Please enter the team password (Nexora@2026).",
+      };
     }
 
     // Check if matching other predefined users
