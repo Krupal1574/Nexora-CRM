@@ -254,7 +254,7 @@ export const SAMPLE_NOTES: Note[] = [
 ];
 
 export const SAMPLE_TEAM: TeamMember[] = [
-  { name: "Krupal P.", role: "Owner / Admin", access: "Full access" },
+  { name: "Support Admin", role: "Owner / Admin", access: "Full access" },
   { name: "Priya S.", role: "Senior Recruiter", access: "Leads, candidates, jobs" },
   { name: "Rahul K.", role: "Account Manager", access: "Clients, leads, jobs" },
   { name: "Amit D.", role: "Recruiter", access: "Candidates, tasks" },

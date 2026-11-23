@@ -33,14 +33,6 @@ export const DEMO_USERS: AuthUser[] = [
     authProvider: "credentials",
   },
   {
-    id: "u-krupal",
-    name: "Krupal P.",
-    email: "krupal@nexorastafingllp.com",
-    role: "Owner / Admin",
-    avatarInitials: "KP",
-    authProvider: "google",
-  },
-  {
     id: "u-yatri",
     name: "Yatri",
     email: "yatri@nexorastafingllp.com",
@@ -144,6 +136,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       };
     }
 
+    // Deactivated accounts
+    if (
+      trimmedEmail === "krupal@nexorastaffingllp.com" ||
+      trimmedEmail === "krupal@nexorastafingllp.com"
+    ) {
+      return {
+        success: false,
+        error: "Account deactivated: krupal@nexorastaffingllp.com has been removed. Please sign in with support@nexorastaffingllp.com.",
+      };
+    }
+
     // Support Admin account via Google
     if (
       trimmedEmail === "support@nexorastaffingllp.com" ||
@@ -212,6 +215,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return {
         success: false,
         error: `Access Restricted: Nexora CRM requires a corporate email ending with ${REQUIRED_DOMAIN}.`,
+      };
+    }
+
+    // Deactivated accounts
+    if (
+      trimmedEmail === "krupal@nexorastaffingllp.com" ||
+      trimmedEmail === "krupal@nexorastafingllp.com"
+    ) {
+      return {
+        success: false,
+        error: "Account deactivated: krupal@nexorastaffingllp.com has been removed. Please sign in with support@nexorastaffingllp.com.",
       };
     }
 
