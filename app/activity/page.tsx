@@ -2,8 +2,11 @@
 import { CrmShell } from "@/components/crm-shell";
 import { SoonButton } from "@/lib/crm/toast-context";
 import { SAMPLE_ACTIVITY, getInitials } from "@/lib/crm/sample-data";
+import { useAuth } from "@/lib/crm/auth-context";
 
 export default function ActivityPage() {
+  const { isAdmin } = useAuth();
+
   return (
     <CrmShell>
       <div className="page-top">
@@ -11,7 +14,7 @@ export default function ActivityPage() {
           <h1>Activity &amp; Audit Log</h1>
           <p className="page-sub">Who did what, and when.</p>
         </div>
-        <SoonButton label="Export log" className="btn ghost" />
+        {isAdmin && <SoonButton label="Export log" className="btn ghost" />}
       </div>
 
       <div className="card">

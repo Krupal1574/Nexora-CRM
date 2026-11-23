@@ -7,11 +7,13 @@ import { useCandidateStore, type CrmCandidate, type PipelineStage } from "@/lib/
 import { useToast } from "@/lib/crm/toast-context";
 import { PIPELINE_STAGES, getInitials, getPillClass } from "@/lib/crm/sample-data";
 import { Modal, useConfirm } from "@/components/ui";
+import { useAuth } from "@/lib/crm/auth-context";
 
 export default function CandidatesPage() {
   const store = useCandidateStore();
   const { show } = useToast();
   const { confirm, ConfirmDialog } = useConfirm();
+  const { isAdmin } = useAuth();
 
   const [search, setSearch] = useState("");
   const [filterStage, setFilterStage] = useState<string>("All");
@@ -103,6 +105,10 @@ export default function CandidatesPage() {
   };
 
   const exportCsv = () => {
+    if (!isAdmin) {
+      show("Export is restricted to Administrators only.");
+      return;
+    }
     if (filteredCandidates.length === 0) {
       show("No candidates to export.");
       return;
@@ -172,9 +178,11 @@ export default function CandidatesPage() {
             </option>
           ))}
         </select>
-        <button className="btn ghost" onClick={exportCsv} title="Export CSV">
-          ⬇ Export CSV
-        </button>
+        {isAdmin && (
+          <button className="btn ghost" onClick={exportCsv} title="Export CSV (Admin Only)">
+            ⬇ Export CSV
+          </button>
+        )}
         <Link href="/pipeline" className="btn ghost" style={{ textDecoration: "none" }}>
           ≡ Kanban view
         </Link>

@@ -7,6 +7,7 @@ import { useLeadStore, LEAD_STAGES, type CrmLead, type LeadStage } from "@/lib/c
 import { useToast } from "@/lib/crm/toast-context";
 import { getInitials, getPillClass } from "@/lib/crm/sample-data";
 import { Modal, useConfirm } from "@/components/ui";
+import { useAuth } from "@/lib/crm/auth-context";
 
 type ViewMode = "list" | "kanban";
 
@@ -29,6 +30,7 @@ export default function LeadsPage() {
   const store = useLeadStore();
   const { show } = useToast();
   const { confirm, ConfirmDialog } = useConfirm();
+  const { isAdmin } = useAuth();
 
   const [view, setView] = useState<ViewMode>("list");
   const [search, setSearch] = useState("");
@@ -258,6 +260,10 @@ export default function LeadsPage() {
 
   // Export exact matching columns specified by production staffing sheet
   const handleExportCsv = () => {
+    if (!isAdmin) {
+      show("Export is restricted to Administrators only.");
+      return;
+    }
     if (filtered.length === 0) {
       show("No leads to export.");
       return;
@@ -376,9 +382,11 @@ export default function LeadsPage() {
             ▦ Kanban
           </button>
         </div>
-        <button className="btn ghost" onClick={handleExportCsv}>
-          ⬇ Export CSV
-        </button>
+        {isAdmin && (
+          <button className="btn ghost" onClick={handleExportCsv} title="Export leads as CSV (Admin Only)">
+            ⬇ Export CSV
+          </button>
+        )}
         {selected.size > 0 && (
           <div style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
             <button

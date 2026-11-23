@@ -6,6 +6,7 @@ import { CrmShell } from "@/components/crm-shell";
 import { useToast } from "@/lib/crm/toast-context";
 import { useLeadStore, type LeadStage, LEAD_STAGES } from "@/lib/crm/lead-store";
 import { useCandidateStore, type PipelineStage } from "@/lib/crm/candidate-store";
+import { useAuth } from "@/lib/crm/auth-context";
 
 /* ═══════════════════════════════════════════════════════════════════════
    RFC 4180 CSV Parser — handles quoted fields, multi-line values,
@@ -270,6 +271,7 @@ export default function ImportExportPage() {
   const { leads, createLead } = useLeadStore();
   const { candidates, createCandidate } = useCandidateStore();
   const { show } = useToast();
+  const { isAdmin } = useAuth();
 
   const handleDownloadLeadTemplate = () => {
     const csvContent =
@@ -435,6 +437,10 @@ export default function ImportExportPage() {
   };
 
   const handleExportLeadsCsv = () => {
+    if (!isAdmin) {
+      show("Export is restricted to Administrators only.");
+      return;
+    }
     const headers = [
       "Date",
       "Location",
@@ -500,6 +506,10 @@ export default function ImportExportPage() {
   };
 
   const handleExportCandidatesCsv = () => {
+    if (!isAdmin) {
+      show("Export is restricted to Administrators only.");
+      return;
+    }
     const headers = "Name,Role,Location,Stage,Experience,Email,Phone,Skills\n";
     const rows = candidates
       .map(
@@ -568,9 +578,11 @@ export default function ImportExportPage() {
         <button className={`tab-btn ${tab === "import" ? "active" : ""}`} onClick={() => setTab("import")}>
           Import
         </button>
-        <button className={`tab-btn ${tab === "export" ? "active" : ""}`} onClick={() => setTab("export")}>
-          Export
-        </button>
+        {isAdmin && (
+          <button className={`tab-btn ${tab === "export" ? "active" : ""}`} onClick={() => setTab("export")}>
+            Export
+          </button>
+        )}
         <button className={`tab-btn ${tab === "history" ? "active" : ""}`} onClick={() => setTab("history")}>
           History
         </button>
@@ -789,7 +801,17 @@ export default function ImportExportPage() {
         </div>
       )}
 
-      {tab === "export" && (
+      {tab === "export" && !isAdmin && (
+        <div className="card empty-state">
+          <span className="big">🔒</span>
+          <h3>Export Restricted</h3>
+          <p style={{ color: "var(--mu)", fontSize: 13, marginTop: 6 }}>
+            Exporting staffing leads and candidate records is restricted to Administrators only.
+          </p>
+        </div>
+      )}
+
+      {tab === "export" && isAdmin && (
         <div className="grid g2">
           {/* Export Leads */}
           <div className="card">

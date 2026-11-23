@@ -8,6 +8,7 @@ import { useJobStore } from "@/lib/crm/job-store";
 import { useToast } from "@/lib/crm/toast-context";
 import { getInitials, getPillClass } from "@/lib/crm/sample-data";
 import { Modal, useConfirm } from "@/components/ui";
+import { useAuth } from "@/lib/crm/auth-context";
 
 const INDUSTRIES = ["Technology", "Healthcare", "Finance", "Retail", "Logistics", "Manufacturing", "Other"];
 const STATUSES = ["Active", "Prospect", "On hold"] as const;
@@ -18,6 +19,7 @@ export default function ClientsPage() {
   const jobStore = useJobStore();
   const { show } = useToast();
   const { confirm, ConfirmDialog } = useConfirm();
+  const { isAdmin } = useAuth();
 
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState<string>("All");
@@ -96,6 +98,10 @@ export default function ClientsPage() {
   };
 
   const exportCsv = () => {
+    if (!isAdmin) {
+      show("Export is restricted to Administrators only.");
+      return;
+    }
     if (filteredClients.length === 0) {
       show("No clients to export.");
       return;
@@ -153,9 +159,11 @@ export default function ClientsPage() {
             </option>
           ))}
         </select>
-        <button className="btn ghost" onClick={exportCsv}>
-          ⬇ Export CSV
-        </button>
+        {isAdmin && (
+          <button className="btn ghost" onClick={exportCsv} title="Export CSV (Admin Only)">
+            ⬇ Export CSV
+          </button>
+        )}
       </div>
 
       {/* Table */}
