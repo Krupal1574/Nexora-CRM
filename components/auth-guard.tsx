@@ -41,7 +41,7 @@ export function AuthGuard({ children }: { children: ReactNode }) {
               height: 44,
               borderRadius: 12,
               background: "var(--or)",
-              color: "#fff",
+              color: "var(--on-or)",
               display: "grid",
               placeItems: "center",
               fontSize: 22,

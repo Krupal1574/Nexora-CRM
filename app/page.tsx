@@ -172,7 +172,7 @@ export default function DashboardPage() {
           <svg viewBox="0 0 300 110" width="100%" style={{ marginTop: 6 }}>
             <polyline
               fill="none"
-              stroke="#F58220"
+              stroke="#F26A21"
               strokeWidth="3.5"
               strokeLinecap="round"
               strokeLinejoin="round"

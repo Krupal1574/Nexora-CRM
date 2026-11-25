@@ -334,9 +334,10 @@ export function getPillClass(status: string): string {
     case "Offer stage":
     case "Prospect":
       return "or";
+    case "Open":
+      return "open";
     case "Active":
     case "Placed":
-    case "Open":
     case "Qualified":
     case "Enrolled":
       return "ok";

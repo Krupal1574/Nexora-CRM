@@ -1,0 +1,703 @@
+diff --git a/CRM Prototype.html b/CRM Prototype.html
+index a5bb0c0..0b9145f 100644
+--- a/CRM Prototype.html	
++++ b/CRM Prototype.html	
+@@ -3,7 +3,7 @@
+ <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+ <title>Nexora CRM – Prototype</title>
+ <style>
+-:root{--navy:#1A1A1C;--navy2:#2c2c30;--bl:#1F6FEB;--or:#F58220;--bg:#FAF5E9;--card:#FFFCF4;--tx:#1A1A1C;--mu:#6f6a5e;--bd:#E8DFCB;--ok:#1f9d6b;--bad:#d64545;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
++:root{--navy:#203548;--navy2:#2C4760;--bl:#8FB8D8;--or:#F26A21;--bg:#F5F1E8;--card:#FFFFFF;--tx:#171717;--mu:#77736D;--bd:#E5E5E5;--ok:#1f9d6b;--bad:#d64545;--open:#FF2B2B;--on-or:#171717;--on-bl:#203548;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+ @media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#121214;--card:#1d1d20;--tx:#F3EEE2;--mu:#a29d92;--bd:#34343a}}
+ :root[data-theme="dark"]{--bg:#121214;--card:#1d1d20;--tx:#F3EEE2;--mu:#a29d92;--bd:#34343a}
+ *{box-sizing:border-box}html,body{margin:0}body{font-family:Inter,system-ui,-apple-system,Segoe UI,sans-serif;background:var(--bg);color:var(--tx);font-size:14px}
+@@ -13,7 +13,7 @@ aside{width:236px;background:var(--navy);color:#cfd8e8;padding:16px 12px;positio
+ .logo{display:flex;align-items:center;gap:10px;color:#fff;font-weight:800;font-size:18px;padding:4px 8px 18px}
+ .logo i{width:32px;height:32px;border-radius:9px;background:var(--or);display:grid;place-items:center;font-style:normal;color:#fff}
+ .nav a{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:9px;color:#cfd8e8;text-decoration:none;cursor:pointer;margin-bottom:2px}
+-.nav a:hover{background:var(--navy2)}.logo{border-bottom:1px solid #2c2c30;margin-bottom:12px}.nav a.on{background:var(--or);color:#fff;font-weight:600}
++.nav a:hover{background:var(--navy2)}.logo{border-bottom:1px solid #2c2c30;margin-bottom:12px}.nav a.on{background:var(--or);color:var(--on-or);font-weight:600}
+ .nav small{margin:14px 10px 6px;display:block;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#7f90ad}
+ main{flex:1;min-width:0}
+ header{display:flex;gap:12px;align-items:center;padding:12px 24px;background:var(--card);border-bottom:1px solid var(--bd);position:sticky;top:0;z-index:5}
+@@ -27,15 +27,15 @@ h1{font-size:22px;margin:0 0 4px}.sub{color:var(--mu);margin:0 0 20px}
+ input,select,textarea,button{font:inherit;color:inherit}
+ input,select,textarea{background:var(--bg);border:1px solid var(--bd);border-radius:9px;padding:9px 11px;width:100%}
+ input:focus,select:focus,textarea:focus,button:focus-visible{outline:2px solid var(--or);outline-offset:1px}
+-.btn{background:var(--or);color:#fff;border:0;border-radius:9px;padding:9px 14px;font-weight:600;cursor:pointer}
++.btn{background:var(--or);color:var(--on-or);border:0;border-radius:9px;padding:9px 14px;font-weight:600;cursor:pointer}
+ .btn.ghost{background:transparent;border:1px solid var(--bd);color:var(--tx)}.btn.navy{background:var(--navy);color:#fff}
+ .tools{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center}.tools input,.tools select{width:auto;min-width:160px}
+ .tbl{overflow-x:auto}table{width:100%;border-collapse:collapse;min-width:620px}th{text-align:left;font-size:12px;color:var(--mu);text-transform:uppercase;letter-spacing:.04em}
+ th,td{padding:11px 10px;border-bottom:1px solid var(--bd)}tr:last-child td{border:0}
+-.pill{display:inline-block;padding:3px 9px;border-radius:99px;font-size:12px;font-weight:600;background:#dce8ff;color:#1550b8}
+-@media(prefers-color-scheme:dark){:root:not([data-theme="light"]) .pill{background:#1c2c4d;color:#a9c8ff}}
+-:root[data-theme="dark"] .pill{background:#1c2c4d;color:#a9c8ff}
+-.pill.or{background:#fde9d6;color:#b25400}.pill.ok{background:#d9f3e8;color:#14704b}.pill.bad{background:#fbe0e0;color:#a52a2a}
++.pill{display:inline-block;padding:3px 9px;border-radius:99px;font-size:12px;font-weight:600;background:#E6F0F7;color:#203548}
++@media(prefers-color-scheme:dark){:root:not([data-theme="light"]) .pill{background:#25384A;color:#BBD6EA}}
++:root[data-theme="dark"] .pill{background:#25384A;color:#BBD6EA}
++.pill.or{background:#FDEBDD;color:#A8470F}.pill.open{background:#FFE5E5;color:#C70000;border:1px solid var(--open)}.pill.ok{background:#d9f3e8;color:#14704b}.pill.bad{background:#fbe0e0;color:#a52a2a}
+ .soon{font-size:10px;background:#fde9d6;color:#b25400;border-radius:6px;padding:2px 6px;margin-left:6px;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+ .av{width:30px;height:30px;border-radius:50%;background:var(--bl);color:#fff;display:inline-grid;place-items:center;font-size:12px;font-weight:700;vertical-align:middle;margin-right:8px}
+ .empty{text-align:center;padding:40px 16px;color:var(--mu)}.empty big{font-size:34px;display:block}.empty h3{color:var(--tx);margin:8px 0 4px}
+@@ -51,7 +51,7 @@ th,td{padding:11px 10px;border-bottom:1px solid var(--bd)}tr:last-child td{borde
+ .ro{opacity:.55;pointer-events:none}
+ @media(max-width:860px){aside{position:fixed;z-index:30;left:-260px;top:0;padding-top:calc(16px + env(safe-area-inset-top,0px))}aside.open{left:0}.burger{display:inline-block}.wrap{padding:16px}header{padding:10px 14px;padding-top:calc(10px + env(safe-area-inset-top,0px))}}
+ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);background:var(--card);z-index:10}
+-.steps{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}.steps span{padding:6px 12px;border-radius:99px;background:var(--card);border:1px solid var(--bd);color:var(--mu);font-weight:600;font-size:13px}.steps .on{background:var(--or);border-color:var(--or);color:#fff}.steps .dn{background:var(--bl);border-color:var(--bl);color:#fff}.drop{display:block;text-align:center;padding:36px 16px;border:2px dashed var(--or);cursor:pointer}.tabs{display:flex;gap:6px;margin-bottom:16px;border-bottom:1px solid var(--bd)}.tabs button{background:none;border:0;padding:10px 14px;cursor:pointer;color:var(--mu);font-weight:600;border-bottom:3px solid transparent}.tabs .on{color:var(--tx);border-color:var(--or)}.chk{display:flex;align-items:center;gap:8px;padding:6px 0}.chk input{width:auto}
++.steps{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}.steps span{padding:6px 12px;border-radius:99px;background:var(--card);border:1px solid var(--bd);color:var(--mu);font-weight:600;font-size:13px}.steps .on{background:var(--or);border-color:var(--or);color:var(--on-or)}.steps .dn{background:var(--bl);border-color:var(--bl);color:#fff}.drop{display:block;text-align:center;padding:36px 16px;border:2px dashed var(--or);cursor:pointer}.tabs{display:flex;gap:6px;margin-bottom:16px;border-bottom:1px solid var(--bd)}.tabs button{background:none;border:0;padding:10px 14px;cursor:pointer;color:var(--mu);font-weight:600;border-bottom:3px solid transparent}.tabs .on{color:var(--tx);border-color:var(--or)}.chk{display:flex;align-items:center;gap:8px;padding:6px 0}.chk input{width:auto}
+ </style><script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script></head><body>
+ <div class="app">
+ <aside id="side"><div class="logo"><i>N</i>Nexora CRM</div><nav class="nav" id="nav"></nav></aside>
+@@ -93,7 +93,7 @@ return head('Good morning, Krupal 👋','Here’s what’s happening across Nexo
+ <div class="grid g2" style="margin-top:14px"><div class="card"><b>Pipeline snapshot</b><div style="margin-top:12px">${D.stages.map((s,i)=>{const n=EMPTY?0:c.filter(x=>x[3]==s).length;return `<div class="row"><span style="width:90px">${s}</span><div class="bar" style="flex:1"><i style="width:${n*30}%"></i></div><b>${n}</b></div>`}).join('')}</div></div>
+ <div class="card"><b>Today’s tasks</b>${G('tasks').slice(0,4).map(t=>`<div class="row"><span>${esc(t[0])}</span>${pill(t[1])}</div>`).join('')||empty('🎉','All clear','No tasks due today.')}</div>
+ <div class="card"><b>Recent activity</b>${G('log').slice(0,4).map(a=>`<div class="row"><span>${who(a[0])} ${esc(a[1])}</span><small style="color:var(--mu)">${a[2]}</small></div>`).join('')||empty('◷','No activity yet','Actions will appear here.')}</div>
+-<div class="card"><b>Placements trend</b><svg viewBox="0 0 300 110" width="100%" style="margin-top:10px"><polyline fill="none" stroke="#F58220" stroke-width="3" points="${EMPTY?'0,100 300,100':'0,90 50,75 100,80 150,50 200,55 250,30 300,18'}"/><polyline fill="none" stroke="var(--bd)" points="0,105 300,105"/></svg></div></div>`},
++<div class="card"><b>Placements trend</b><svg viewBox="0 0 300 110" width="100%" style="margin-top:10px"><polyline fill="none" stroke="#F26A21" stroke-width="3" points="${EMPTY?'0,100 300,100':'0,90 50,75 100,80 150,50 200,55 250,30 300,18'}"/><polyline fill="none" stroke="var(--bd)" points="0,105 300,105"/></svg></div></div>`},
+ leads(){return head('Leads','Track prospects before they become clients.',soonBtn('+ New lead'))+filt('Search leads…')+table(['Contact','Company','Source','Temp','Owner','Value'],G('leads'),r=>`<tr><td>${who(r[0])}</td><td>${r[1]}</td><td>${r[2]}</td><td>${pill(r[3])}</td><td>${r[4]}</td><td>${r[5]}</td><td>${act('Convert')}</td></tr>`,empty('◎','No leads yet','Add your first lead or import a CSV.',soonBtn('+ New lead')))},
+ candidates(){return head('Candidates','Your talent database.',`<a class="btn navy" style="text-decoration:none" href="#import">⇅ Import / Export</a> `+soonBtn('+ Add candidate'))+filt('Search by name, skill, city…')+table(['Name','Role','Location','Stage','Exp.'],G('cands'),r=>`<tr><td>${who(r[0])}</td><td>${r[1]}</td><td>${r[2]}</td><td>${pill(r[3])}</td><td>${r[4]}</td><td>${act('Open')}</td></tr>`,empty('☺','No candidates','Add candidates manually or import a CSV. Resume parsing is coming soon.',soonBtn('+ Add candidate')))},
+ clients(){return head('Clients','Companies you hire for.',soonBtn('+ New client'))+table(['Client','Industry','Status','Open jobs','Account owner'],G('clients'),r=>`<tr><td><b>${r[0]}</b></td><td>${r[1]}</td><td>${pill(r[2])}</td><td>${r[3]}</td><td>${who(r[4])}</td><td>${act('View')}</td></tr>`,empty('▣','No clients yet','Convert a lead or add a client.',soonBtn('+ New client')))},
+diff --git a/app/globals.css b/app/globals.css
+index a30dcd5..004c188 100644
+--- a/app/globals.css
++++ b/app/globals.css
+@@ -1,16 +1,21 @@
+ /* ─── Nexora CRM Design Tokens ─── */
+ :root {
+-  --navy: #1A1A1C;
+-  --navy2: #2c2c30;
+-  --bl: #1F6FEB;
+-  --or: #F58220;
+-  --bg: #FAF5E9;
+-  --card: #FFFCF4;
+-  --tx: #1A1A1C;
+-  --mu: #6f6a5e;
+-  --bd: #E8DFCB;
++  /* Nexora palette */
++  --navy: #203548;        /* deep slate: sidebar, toast, dark buttons */
++  --navy2: #2C4760;       /* slate hover */
++  --bl: #8FB8D8;          /* powder blue: secondary accent */
++  --or: #F26A21;          /* Nexora orange: primary action */
++  --or-hover: #D95A15;
++  --bg: #F5F1E8;          /* soft cream */
++  --card: #FFFFFF;        /* surfaces */
++  --tx: #171717;          /* charcoal */
++  --mu: #77736D;          /* warm gray (use for secondary text only) */
++  --bd: #E5E5E5;          /* light neutral border */
+   --ok: #1f9d6b;
+-  --bad: #d64545;
++  --bad: #d64545;         /* generic errors */
++  --open: #FF2B2B;        /* open-role status */
++  --on-or: #171717;       /* text on orange (white is only ~3:1) */
++  --on-bl: #203548;       /* text on powder blue */
+   --radius: 14px;
+   --radius-sm: 9px;
+ }
+@@ -55,7 +60,7 @@ a { color: inherit; text-decoration: none; }
+ .sidebar {
+   width: 236px;
+   background: var(--navy);
+-  color: #cfd8e8;
++  color: #D6E0EA;
+   padding: 16px 12px;
+   position: sticky;
+   top: 0;
+@@ -75,7 +80,7 @@ a { color: inherit; text-decoration: none; }
+   font-weight: 800;
+   font-size: 18px;
+   padding: 4px 8px 18px;
+-  border-bottom: 1px solid #2c2c30;
++  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+   margin-bottom: 12px;
+ }
+ .sidebar-logo-icon {
+@@ -86,7 +91,7 @@ a { color: inherit; text-decoration: none; }
+   display: grid;
+   place-items: center;
+   font-style: normal;
+-  color: #fff;
++  color: var(--on-or);
+   font-size: 16px;
+   font-weight: 800;
+ }
+@@ -97,7 +102,7 @@ a { color: inherit; text-decoration: none; }
+   font-size: 11px;
+   letter-spacing: 0.08em;
+   text-transform: uppercase;
+-  color: #7f90ad;
++  color: #9DB3C6;
+ }
+ .sidebar-link {
+   display: flex;
+@@ -105,12 +110,12 @@ a { color: inherit; text-decoration: none; }
+   gap: 10px;
+   padding: 9px 10px;
+   border-radius: var(--radius-sm);
+-  color: #cfd8e8;
++  color: #D6E0EA;
+   cursor: pointer;
+   font-size: 14px;
+ }
+ .sidebar-link:hover { background: var(--navy2); }
+-.sidebar-link.active { background: var(--or); color: #fff; font-weight: 600; }
++.sidebar-link.active { background: var(--or); color: var(--on-or); font-weight: 600; }
+ .sidebar-link-icon { width: 18px; text-align: center; font-style: normal; }
+ 
+ /* ─── Header ─── */
+@@ -179,20 +184,25 @@ a { color: inherit; text-decoration: none; }
+   border-radius: 99px;
+   font-size: 12px;
+   font-weight: 600;
+-  background: #dce8ff;
+-  color: #1550b8;
++  background: #E6F0F7;
++  color: #203548;
+ }
+ @media (prefers-color-scheme: dark) {
+-  :root:not([data-theme="light"]) .pill { background: #1c2c4d; color: #a9c8ff; }
++  :root:not([data-theme="light"]) .pill { background: #25384A; color: #BBD6EA; }
+ }
+-:root[data-theme="dark"] .pill { background: #1c2c4d; color: #a9c8ff; }
+-.pill.or { background: #fde9d6; color: #b25400; }
++:root[data-theme="dark"] .pill { background: #25384A; color: #BBD6EA; }
++.pill.or { background: #FDEBDD; color: #A8470F; }
+ .pill.ok { background: #d9f3e8; color: #14704b; }
+ .pill.bad { background: #fbe0e0; color: #a52a2a; }
++.pill.open { background: #FFE5E5; color: #C70000; border: 1px solid var(--open); }
++@media (prefers-color-scheme: dark) {
++  :root:not([data-theme="light"]) .pill.open { background: rgba(255, 43, 43, 0.16); color: #FF6B6B; }
++}
++:root[data-theme="dark"] .pill.open { background: rgba(255, 43, 43, 0.16); color: #FF6B6B; }
+ .pill.soon {
+   font-size: 10px;
+-  background: #fde9d6;
+-  color: #b25400;
++  background: #FDEBDD;
++  color: #A8470F;
+   border-radius: 6px;
+   padding: 2px 6px;
+   margin-left: 6px;
+@@ -204,7 +214,7 @@ a { color: inherit; text-decoration: none; }
+ /* ─── Buttons ─── */
+ .btn {
+   background: var(--or);
+-  color: #fff;
++  color: var(--on-or);
+   border: 0;
+   border-radius: var(--radius-sm);
+   padding: 9px 14px;
+@@ -216,7 +226,9 @@ a { color: inherit; text-decoration: none; }
+   align-items: center;
+   gap: 6px;
+ }
+-.btn:hover { opacity: 0.9; }
++.btn:hover { background: var(--or-hover); }
++.btn.ghost:hover { background: transparent; border-color: var(--or); }
++.btn.navy:hover { background: var(--navy2); }
+ .btn.ghost {
+   background: transparent;
+   border: 1px solid var(--bd);
+@@ -284,7 +296,7 @@ button:disabled { cursor: not-allowed; opacity: 0.55; }
+   border: 2px solid var(--card);
+ }
+ .tbl::-webkit-scrollbar-thumb:hover {
+-  background: #ff9838;
++  background: #F58A4E;
+ }
+ 
+ table { width: 100%; border-collapse: collapse; min-width: 620px; }
+@@ -331,7 +343,7 @@ tr:last-child td { border: 0; }
+   border: 2px solid var(--card);
+ }
+ .table-scroll-wrapper::-webkit-scrollbar-thumb:hover {
+-  background: #ff9838;
++  background: #F58A4E;
+ }
+ 
+ .leads-pro-table {
+@@ -369,11 +381,11 @@ tr:last-child td { border: 0; }
+ }
+ 
+ .leads-pro-table tbody tr:hover td {
+-  background: rgba(245, 130, 32, 0.04);
++  background: rgba(242, 106, 33, 0.04);
+ }
+ 
+ .leads-pro-table tbody tr.row-selected td {
+-  background: rgba(245, 130, 32, 0.10) !important;
++  background: rgba(242, 106, 33, 0.10) !important;
+ }
+ 
+ /* Slide Bar Bottom Controller */
+@@ -472,7 +484,7 @@ tr:last-child td { border: 0; }
+ 
+ .table-range-slider::-webkit-slider-thumb:hover {
+   transform: scale(1.18);
+-  background: #ff9838;
++  background: #F58A4E;
+ }
+ 
+ .table-range-slider::-moz-range-thumb {
+@@ -516,9 +528,9 @@ tr:last-child td { border: 0; }
+   font-size: 11px;
+   font-weight: 700;
+   letter-spacing: 0.02em;
+-  background: rgba(31, 111, 235, 0.14);
++  background: rgba(143, 184, 216, 0.14);
+   color: #58a6ff;
+-  border: 1px solid rgba(31, 111, 235, 0.25);
++  border: 1px solid rgba(143, 184, 216, 0.25);
+ }
+ 
+ .visa-badge.opt {
+@@ -528,9 +540,9 @@ tr:last-child td { border: 0; }
+ }
+ 
+ .visa-badge.h1b {
+-  background: rgba(245, 130, 32, 0.14);
+-  color: #ff9838;
+-  border-color: rgba(245, 130, 32, 0.25);
++  background: rgba(242, 106, 33, 0.14);
++  color: #F58A4E;
++  border-color: rgba(242, 106, 33, 0.25);
+ }
+ 
+ .visa-badge.gc {
+@@ -545,7 +557,7 @@ tr:last-child td { border: 0; }
+   height: 30px;
+   border-radius: 50%;
+   background: var(--bl);
+-  color: #fff;
++  color: var(--on-bl);
+   display: inline-grid;
+   place-items: center;
+   font-size: 12px;
+@@ -632,7 +644,7 @@ tr:last-child td { border: 0; }
+   height: 64px;
+   border-radius: 16px;
+   background: linear-gradient(135deg, var(--bl), var(--or));
+-  color: #fff;
++  color: var(--on-or);
+   display: grid;
+   place-items: center;
+   font-size: 24px;
+@@ -669,8 +681,8 @@ tr:last-child td { border: 0; }
+   font-weight: 600;
+   font-size: 13px;
+ }
+-.step-item.active { background: var(--or); border-color: var(--or); color: #fff; }
+-.step-item.done { background: var(--bl); border-color: var(--bl); color: #fff; }
++.step-item.active { background: var(--or); border-color: var(--or); color: var(--on-or); }
++.step-item.done { background: var(--bl); border-color: var(--bl); color: var(--on-bl); }
+ 
+ /* ─── Drop Zone ─── */
+ .drop-zone {
+@@ -795,9 +807,9 @@ tr:last-child td { border: 0; }
+   white-space: nowrap;
+ }
+ .stage-step:last-child { border-right: 0; }
+-.stage-step:hover { background: var(--card); color: var(--fg); }
+-.stage-step.done { background: var(--bl); color: #fff; }
+-.stage-step.active { background: var(--or); color: #fff; }
++.stage-step:hover { background: var(--card); color: var(--tx); }
++.stage-step.done { background: var(--bl); color: var(--on-bl); }
++.stage-step.active { background: var(--or); color: var(--on-or); }
+ 
+ /* ─── Timeline ─── */
+ .timeline { position: relative; padding-left: 24px; }
+@@ -875,7 +887,7 @@ tr:last-child td { border: 0; }
+   transition: 0.15s;
+ }
+ .composer-type:hover { border-color: var(--or); color: var(--tx); }
+-.composer-type.active { background: var(--or); color: #fff; border-color: var(--or); }
++.composer-type.active { background: var(--or); color: var(--on-or); border-color: var(--or); }
+ 
+ /* ─── View toggle ─── */
+ .view-toggle {
+@@ -895,7 +907,7 @@ tr:last-child td { border: 0; }
+   border-right: 1px solid var(--bd);
+ }
+ .view-toggle button:last-child { border-right: 0; }
+-.view-toggle button.active { background: var(--or); color: #fff; }
++.view-toggle button.active { background: var(--or); color: var(--on-or); }
+ 
+ /* ─── Tag ─── */
+ .tag {
+@@ -916,7 +928,7 @@ tr:last-child td { border: 0; }
+   align-items: center;
+   justify-content: center;
+   padding: 24px 16px;
+-  background: radial-gradient(circle at 50% 10%, rgba(245, 130, 32, 0.12), transparent 45%), var(--bg);
++  background: radial-gradient(circle at 50% 10%, rgba(242, 106, 33, 0.12), transparent 45%), var(--bg);
+ }
+ 
+ .login-card {
+@@ -938,14 +950,14 @@ tr:last-child td { border: 0; }
+   width: 52px;
+   height: 52px;
+   border-radius: 15px;
+-  background: linear-gradient(135deg, var(--or), #e8700a);
+-  color: #fff;
++  background: linear-gradient(135deg, var(--or), var(--or-hover));
++  color: var(--on-or);
+   font-size: 28px;
+   font-weight: 800;
+   display: grid;
+   place-items: center;
+   margin: 0 auto 14px;
+-  box-shadow: 0 6px 18px rgba(245, 130, 32, 0.4);
++  box-shadow: 0 6px 18px rgba(242, 106, 33, 0.4);
+ }
+ 
+ .login-brand h1 {
+@@ -962,8 +974,8 @@ tr:last-child td { border: 0; }
+ }
+ 
+ .login-auth-banner {
+-  background: rgba(245, 130, 32, 0.08);
+-  border: 1px solid rgba(245, 130, 32, 0.22);
++  background: rgba(242, 106, 33, 0.08);
++  border: 1px solid rgba(242, 106, 33, 0.22);
+   color: var(--or);
+   font-size: 11.5px;
+   font-weight: 700;
+@@ -1055,7 +1067,7 @@ tr:last-child td { border: 0; }
+   color: var(--or);
+   font-weight: 700;
+   font-size: 11px;
+-  background: rgba(245, 130, 32, 0.08);
++  background: rgba(242, 106, 33, 0.08);
+   padding: 1px 5px;
+   border-radius: 4px;
+ }
+@@ -1146,8 +1158,8 @@ tr:last-child td { border: 0; }
+ 
+ .login-quick-card.active {
+   border-color: var(--or);
+-  background: rgba(245, 130, 32, 0.07);
+-  box-shadow: 0 0 0 2px rgba(245, 130, 32, 0.15);
++  background: rgba(242, 106, 33, 0.07);
++  box-shadow: 0 0 0 2px rgba(242, 106, 33, 0.15);
+ }
+ 
+ .login-quick-card.active .login-quick-arrow {
+@@ -1160,7 +1172,7 @@ tr:last-child td { border: 0; }
+   height: 32px;
+   border-radius: 8px;
+   background: var(--or);
+-  color: #fff;
++  color: var(--on-or);
+   font-size: 11px;
+   font-weight: 800;
+   display: grid;
+@@ -1241,7 +1253,7 @@ tr:last-child td { border: 0; }
+ .sidebar-user-card {
+   margin-top: auto;
+   padding: 12px 10px;
+-  border-top: 1px solid #2c2c30;
++  border-top: 1px solid rgba(255, 255, 255, 0.12);
+   display: flex;
+   align-items: center;
+   gap: 8px;
+@@ -1252,7 +1264,7 @@ tr:last-child td { border: 0; }
+   height: 30px;
+   border-radius: 50%;
+   background: var(--or);
+-  color: #fff;
++  color: var(--on-or);
+   font-size: 11px;
+   font-weight: 800;
+   display: grid;
+@@ -1278,7 +1290,7 @@ tr:last-child td { border: 0; }
+ 
+ .sidebar-user-role {
+   font-size: 10.5px;
+-  color: #7f90ad;
++  color: #9DB3C6;
+   white-space: nowrap;
+   overflow: hidden;
+   text-overflow: ellipsis;
+@@ -1286,8 +1298,8 @@ tr:last-child td { border: 0; }
+ 
+ .sidebar-logout-btn {
+   background: transparent;
+-  border: 1px solid #3c3c42;
+-  color: #cfd8e8;
++  border: 1px solid rgba(255, 255, 255, 0.2);
++  color: #D6E0EA;
+   border-radius: 6px;
+   width: 26px;
+   height: 26px;
+@@ -1375,8 +1387,8 @@ tr:last-child td { border: 0; }
+ }
+ 
+ .google-modal-domain-rule {
+-  background: rgba(245, 130, 32, 0.09);
+-  border: 1px solid rgba(245, 130, 32, 0.25);
++  background: rgba(242, 106, 33, 0.09);
++  border: 1px solid rgba(242, 106, 33, 0.25);
+   color: var(--or);
+   padding: 6px 10px;
+   border-radius: 8px;
+@@ -1460,3 +1472,147 @@ tr:last-child td { border: 0; }
+   font-weight: 700;
+   border: 1px solid rgba(66, 133, 244, 0.28);
+ }
++
++
++/* ─── Login redesign: split hero + form ─── */
++.login-container {
++  min-height: 100vh;
++  display: grid;
++  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
++  align-items: stretch;
++  justify-content: stretch;
++  padding: 0;
++  background: var(--bg);
++}
++
++.login-hero {
++  position: relative;
++  overflow: hidden;
++  display: flex;
++  flex-direction: column;
++  justify-content: space-between;
++  padding: 44px 56px;
++  color: #fff;
++  background:
++    radial-gradient(520px 520px at 108% -8%, rgba(242, 106, 33, 0.95), rgba(242, 106, 33, 0) 62%),
++    radial-gradient(460px 460px at -12% 112%, rgba(143, 184, 216, 0.55), rgba(143, 184, 216, 0) 64%),
++    var(--navy);
++}
++.login-hero::before,
++.login-hero::after {
++  content: "";
++  position: absolute;
++  border-radius: 50%;
++  pointer-events: none;
++}
++.login-hero::before {
++  width: 380px;
++  height: 380px;
++  right: -140px;
++  bottom: 90px;
++  border: 1.5px solid rgba(143, 184, 216, 0.35);
++}
++.login-hero::after {
++  width: 220px;
++  height: 220px;
++  right: -60px;
++  bottom: 170px;
++  border: 1.5px solid rgba(255, 255, 255, 0.18);
++}
++.login-hero > * { position: relative; z-index: 1; }
++
++.login-hero-top { display: flex; align-items: center; gap: 12px; }
++.login-hero-logo { margin: 0; width: 44px; height: 44px; font-size: 22px; box-shadow: none; }
++.login-hero-name { font-size: 22px; font-weight: 800; letter-spacing: -0.01em; }
++
++.login-hero-body { max-width: 480px; }
++.login-hero-eyebrow {
++  display: inline-block;
++  font-size: 11.5px;
++  font-weight: 700;
++  letter-spacing: 0.12em;
++  text-transform: uppercase;
++  color: var(--bl);
++  margin-bottom: 18px;
++}
++.login-hero h2 {
++  font-size: clamp(38px, 4.6vw, 58px);
++  line-height: 1.04;
++  letter-spacing: -0.03em;
++  font-weight: 800;
++  margin: 0 0 20px;
++}
++.login-hero h2 em { font-style: normal; color: var(--bl); }
++.login-hero p {
++  font-size: 16px;
++  line-height: 1.6;
++  color: #D6E0EA;
++  margin: 0 0 28px;
++  max-width: 430px;
++}
++.login-hero-points {
++  list-style: none;
++  margin: 0;
++  padding: 0;
++  display: grid;
++  gap: 12px;
++  font-size: 14.5px;
++  color: #fff;
++}
++.login-hero-points i {
++  font-style: normal;
++  color: var(--or);
++  margin-right: 10px;
++  font-size: 12px;
++}
++.login-hero-foot { font-size: 12.5px; color: #9DB3C6; }
++
++.login-panel {
++  display: flex;
++  align-items: center;
++  justify-content: center;
++  padding: 32px 24px;
++  background: radial-gradient(circle at 80% 0%, rgba(242, 106, 33, 0.08), transparent 45%), var(--bg);
++}
++.login-card {
++  max-width: 440px;
++  padding: 36px 32px 28px;
++  border-radius: 20px;
++  border-top: 4px solid var(--or);
++  box-shadow: 0 18px 50px rgba(32, 53, 72, 0.14);
++}
++.login-brand h1 { font-size: 26px; }
++.login-auth-banner {
++  background: #FDEBDD;
++  border-color: rgba(242, 106, 33, 0.35);
++  color: #A8470F;
++}
++.login-google-btn:hover { border-color: var(--bl); }
++.login-field input:focus { border-color: var(--or); }
++.login-quick-card:hover,
++.login-quick-card.active { border-color: var(--or); }
++.login-pwd-hints code { color: #A8470F; background: #FDEBDD; }
++
++@media (prefers-color-scheme: dark) {
++  :root:not([data-theme="light"]) .login-auth-banner { background: rgba(242, 106, 33, 0.14); color: #FFB98A; }
++  :root:not([data-theme="light"]) .login-pwd-hints code { background: rgba(242, 106, 33, 0.14); color: #FFB98A; }
++}
++:root[data-theme="dark"] .login-auth-banner { background: rgba(242, 106, 33, 0.14); color: #FFB98A; }
++:root[data-theme="dark"] .login-pwd-hints code { background: rgba(242, 106, 33, 0.14); color: #FFB98A; }
++
++/* Desktop: hero carries the brand, card only needs the greeting */
++@media (min-width: 901px) {
++  .login-brand .login-logo-badge { display: none; }
++  .login-brand { text-align: left; }
++}
++/* Tablet / mobile: hide hero, keep the card centered */
++@media (max-width: 900px) {
++  .login-container { grid-template-columns: 1fr; }
++  .login-hero { display: none; }
++  .login-panel { padding: 24px 16px; min-height: 100vh; }
++}
++
++/* Keep quick-select cards inside the login card */
++.login-quick-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
++.login-quick-card { min-width: 0; }
++@media (max-width: 480px) { .login-quick-list { grid-template-columns: minmax(0, 1fr); } }
+diff --git a/app/leads/page.tsx b/app/leads/page.tsx
+index 9092a28..2e3f058 100644
+--- a/app/leads/page.tsx
++++ b/app/leads/page.tsx
+@@ -469,7 +469,7 @@ export default function LeadsPage() {
+                               href={`/leads/${lead.id}`}
+                               style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none", color: "inherit" }}
+                             >
+-                              <span className="av" style={{ background: "linear-gradient(135deg, #1F6FEB, #8a2be2)" }}>
++                              <span className="av" style={{ background: "linear-gradient(135deg, #8FB8D8, #F26A21)", color: "#171717" }}>
+                                 {getInitials(lead.name)}
+                               </span>
+                               <div>
+diff --git a/app/login/page.tsx b/app/login/page.tsx
+index fa4ecb2..ac920f8 100644
+--- a/app/login/page.tsx
++++ b/app/login/page.tsx
+@@ -111,12 +111,42 @@ function LoginForm() {
+ 
+   return (
+     <div className="login-container">
++      {/* Brand / hero panel (hidden on small screens) */}
++      <aside className="login-hero" aria-hidden="true">
++        <div className="login-hero-top">
++          <div className="login-logo-badge login-hero-logo">N</div>
++          <span className="login-hero-name">Nexora</span>
++        </div>
++
++        <div className="login-hero-body">
++          <span className="login-hero-eyebrow">Staffing Sourcing Platform</span>
++          <h2>
++            People. <em>Talent.</em>
++            <br />
++            Growth.
++          </h2>
++          <p>
++            One workspace for leads, candidates, client accounts and open
++            requisitions — from first call to placement.
++          </p>
++
++          <ul className="login-hero-points">
++            <li><i>◆</i> Visual pipeline from New to Placed</li>
++            <li><i>◆</i> Client accounts and open mandates in one place</li>
++            <li><i>◆</i> Role-based access with a full audit trail</li>
++          </ul>
++        </div>
++
++        <div className="login-hero-foot">Nexora Staffing LLP</div>
++      </aside>
++
++      <main className="login-panel">
+       <div className="login-card">
+         {/* Brand Header */}
+         <div className="login-brand">
+           <div className="login-logo-badge">N</div>
+-          <h1>Nexora CRM</h1>
+-          <p className="login-sub">People, Talent, Growth — Staffing Sourcing Platform</p>
++          <h1>Welcome back</h1>
++          <p className="login-sub">Sign in to Nexora CRM to continue</p>
+         </div>
+ 
+         {/* Corporate Domain Security Banner */}
+@@ -256,6 +286,7 @@ function LoginForm() {
+           <span>Nexora Staffing LLP • Secure Internal CRM</span>
+         </div>
+       </div>
++      </main>
+ 
+       {/* Google Account Selector Dialog */}
+       {showGoogleModal && (
+diff --git a/app/page.tsx b/app/page.tsx
+index 2318238..ea3ec3a 100644
+--- a/app/page.tsx
++++ b/app/page.tsx
+@@ -172,7 +172,7 @@ export default function DashboardPage() {
+           <svg viewBox="0 0 300 110" width="100%" style={{ marginTop: 6 }}>
+             <polyline
+               fill="none"
+-              stroke="#F58220"
++              stroke="#F26A21"
+               strokeWidth="3.5"
+               strokeLinecap="round"
+               strokeLinejoin="round"
+diff --git a/components/auth-guard.tsx b/components/auth-guard.tsx
+index 35ed440..7be990f 100644
+--- a/components/auth-guard.tsx
++++ b/components/auth-guard.tsx
+@@ -41,7 +41,7 @@ export function AuthGuard({ children }: { children: ReactNode }) {
+               height: 44,
+               borderRadius: 12,
+               background: "var(--or)",
+-              color: "#fff",
++              color: "var(--on-or)",
+               display: "grid",
+               placeItems: "center",
+               fontSize: 22,
+diff --git a/lib/crm/sample-data.ts b/lib/crm/sample-data.ts
+index 84ad567..6f367da 100644
+--- a/lib/crm/sample-data.ts
++++ b/lib/crm/sample-data.ts
+@@ -334,9 +334,10 @@ export function getPillClass(status: string): string {
+     case "Offer stage":
+     case "Prospect":
+       return "or";
++    case "Open":
++      return "open";
+     case "Active":
+     case "Placed":
+-    case "Open":
+     case "Qualified":
+     case "Enrolled":
+       return "ok";

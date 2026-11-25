@@ -1472,3 +1472,147 @@ tr:last-child td { border: 0; }
   font-weight: 700;
   border: 1px solid rgba(66, 133, 244, 0.28);
 }
+
+
+/* ─── Login redesign: split hero + form ─── */
+.login-container {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  align-items: stretch;
+  justify-content: stretch;
+  padding: 0;
+  background: var(--bg);
+}
+
+.login-hero {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 44px 56px;
+  color: #fff;
+  background:
+    radial-gradient(520px 520px at 108% -8%, rgba(242, 106, 33, 0.95), rgba(242, 106, 33, 0) 62%),
+    radial-gradient(460px 460px at -12% 112%, rgba(143, 184, 216, 0.55), rgba(143, 184, 216, 0) 64%),
+    var(--navy);
+}
+.login-hero::before,
+.login-hero::after {
+  content: "";
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+}
+.login-hero::before {
+  width: 380px;
+  height: 380px;
+  right: -140px;
+  bottom: 90px;
+  border: 1.5px solid rgba(143, 184, 216, 0.35);
+}
+.login-hero::after {
+  width: 220px;
+  height: 220px;
+  right: -60px;
+  bottom: 170px;
+  border: 1.5px solid rgba(255, 255, 255, 0.18);
+}
+.login-hero > * { position: relative; z-index: 1; }
+
+.login-hero-top { display: flex; align-items: center; gap: 12px; }
+.login-hero-logo { margin: 0; width: 44px; height: 44px; font-size: 22px; box-shadow: none; }
+.login-hero-name { font-size: 22px; font-weight: 800; letter-spacing: -0.01em; }
+
+.login-hero-body { max-width: 480px; }
+.login-hero-eyebrow {
+  display: inline-block;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--bl);
+  margin-bottom: 18px;
+}
+.login-hero h2 {
+  font-size: clamp(38px, 4.6vw, 58px);
+  line-height: 1.04;
+  letter-spacing: -0.03em;
+  font-weight: 800;
+  margin: 0 0 20px;
+}
+.login-hero h2 em { font-style: normal; color: var(--bl); }
+.login-hero p {
+  font-size: 16px;
+  line-height: 1.6;
+  color: #D6E0EA;
+  margin: 0 0 28px;
+  max-width: 430px;
+}
+.login-hero-points {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+  font-size: 14.5px;
+  color: #fff;
+}
+.login-hero-points i {
+  font-style: normal;
+  color: var(--or);
+  margin-right: 10px;
+  font-size: 12px;
+}
+.login-hero-foot { font-size: 12.5px; color: #9DB3C6; }
+
+.login-panel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 24px;
+  background: radial-gradient(circle at 80% 0%, rgba(242, 106, 33, 0.08), transparent 45%), var(--bg);
+}
+.login-card {
+  max-width: 440px;
+  padding: 36px 32px 28px;
+  border-radius: 20px;
+  border-top: 4px solid var(--or);
+  box-shadow: 0 18px 50px rgba(32, 53, 72, 0.14);
+}
+.login-brand h1 { font-size: 26px; }
+.login-auth-banner {
+  background: #FDEBDD;
+  border-color: rgba(242, 106, 33, 0.35);
+  color: #A8470F;
+}
+.login-google-btn:hover { border-color: var(--bl); }
+.login-field input:focus { border-color: var(--or); }
+.login-quick-card:hover,
+.login-quick-card.active { border-color: var(--or); }
+.login-pwd-hints code { color: #A8470F; background: #FDEBDD; }
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .login-auth-banner { background: rgba(242, 106, 33, 0.14); color: #FFB98A; }
+  :root:not([data-theme="light"]) .login-pwd-hints code { background: rgba(242, 106, 33, 0.14); color: #FFB98A; }
+}
+:root[data-theme="dark"] .login-auth-banner { background: rgba(242, 106, 33, 0.14); color: #FFB98A; }
+:root[data-theme="dark"] .login-pwd-hints code { background: rgba(242, 106, 33, 0.14); color: #FFB98A; }
+
+/* Desktop: hero carries the brand, card only needs the greeting */
+@media (min-width: 901px) {
+  .login-brand .login-logo-badge { display: none; }
+  .login-brand { text-align: left; }
+}
+/* Tablet / mobile: hide hero, keep the card centered */
+@media (max-width: 900px) {
+  .login-container { grid-template-columns: 1fr; }
+  .login-hero { display: none; }
+  .login-panel { padding: 24px 16px; min-height: 100vh; }
+}
+
+/* Keep quick-select cards inside the login card */
+.login-quick-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.login-quick-card { min-width: 0; }
+@media (max-width: 480px) { .login-quick-list { grid-template-columns: minmax(0, 1fr); } }

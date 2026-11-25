@@ -3,7 +3,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Nexora CRM – Prototype</title>
 <style>
-:root{--navy:#1A1A1C;--navy2:#2c2c30;--bl:#1F6FEB;--or:#F58220;--bg:#FAF5E9;--card:#FFFCF4;--tx:#1A1A1C;--mu:#6f6a5e;--bd:#E8DFCB;--ok:#1f9d6b;--bad:#d64545;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+:root{--navy:#203548;--navy2:#2C4760;--bl:#8FB8D8;--or:#F26A21;--or-hover:#D95A15;--bg:#F5F1E8;--card:#FFFFFF;--tx:#171717;--mu:#77736D;--bd:#E5E5E5;--ok:#1f9d6b;--bad:#d64545;--open:#FF2B2B;--on-or:#171717;--on-bl:#203548;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 @media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#121214;--card:#1d1d20;--tx:#F3EEE2;--mu:#a29d92;--bd:#34343a}}
 :root[data-theme="dark"]{--bg:#121214;--card:#1d1d20;--tx:#F3EEE2;--mu:#a29d92;--bd:#34343a}
 *{box-sizing:border-box}html,body{margin:0}body{font-family:Inter,system-ui,-apple-system,Segoe UI,sans-serif;background:var(--bg);color:var(--tx);font-size:14px}
@@ -11,9 +11,9 @@ html{scroll-padding-top:env(safe-area-inset-top,0px)}
 .app{display:flex;min-height:100vh}
 aside{width:236px;background:var(--navy);color:#cfd8e8;padding:16px 12px;position:sticky;top:0;height:100vh;overflow:auto;flex-shrink:0;transition:.2s}
 .logo{display:flex;align-items:center;gap:10px;color:#fff;font-weight:800;font-size:18px;padding:4px 8px 18px}
-.logo i{width:32px;height:32px;border-radius:9px;background:var(--or);display:grid;place-items:center;font-style:normal;color:#fff}
+.logo i{width:32px;height:32px;border-radius:9px;background:var(--or);display:grid;place-items:center;font-style:normal;color:var(--on-or)}
 .nav a{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:9px;color:#cfd8e8;text-decoration:none;cursor:pointer;margin-bottom:2px}
-.nav a:hover{background:var(--navy2)}.logo{border-bottom:1px solid #2c2c30;margin-bottom:12px}.nav a.on{background:var(--or);color:#fff;font-weight:600}
+.nav a:hover{background:var(--navy2)}.logo{border-bottom:1px solid #2c2c30;margin-bottom:12px}.nav a.on{background:var(--or);color:var(--on-or);font-weight:600}
 .nav small{margin:14px 10px 6px;display:block;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#7f90ad}
 main{flex:1;min-width:0}
 header{display:flex;gap:12px;align-items:center;padding:12px 24px;background:var(--card);border-bottom:1px solid var(--bd);position:sticky;top:0;z-index:5}
@@ -27,12 +27,12 @@ h1{font-size:22px;margin:0 0 4px}.sub{color:var(--mu);margin:0 0 20px}
 input,select,textarea,button{font:inherit;color:inherit}
 input,select,textarea{background:var(--bg);border:1px solid var(--bd);border-radius:9px;padding:9px 11px;width:100%}
 input:focus,select:focus,textarea:focus,button:focus-visible{outline:2px solid var(--or);outline-offset:1px}
-.btn{background:var(--or);color:#fff;border:0;border-radius:9px;padding:9px 14px;font-weight:600;cursor:pointer}
+.btn{background:var(--or);color:var(--on-or);border:0;border-radius:9px;padding:9px 14px;font-weight:600;cursor:pointer}
 .btn.ghost{background:transparent;border:1px solid var(--bd);color:var(--tx)}.btn.navy{background:var(--navy);color:#fff}
 .tools{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center}.tools input,.tools select{width:auto;min-width:160px}
 .tbl{overflow-x:auto}table{width:100%;border-collapse:collapse;min-width:620px}th{text-align:left;font-size:12px;color:var(--mu);text-transform:uppercase;letter-spacing:.04em}
 th,td{padding:11px 10px;border-bottom:1px solid var(--bd)}tr:last-child td{border:0}
-.pill{display:inline-block;padding:3px 9px;border-radius:99px;font-size:12px;font-weight:600;background:#dce8ff;color:#1550b8}
+.pill{display:inline-block;padding:3px 9px;border-radius:99px;font-size:12px;font-weight:600;background:#E6F0F7;color:#203548}
 @media(prefers-color-scheme:dark){:root:not([data-theme="light"]) .pill{background:#1c2c4d;color:#a9c8ff}}
 :root[data-theme="dark"] .pill{background:#1c2c4d;color:#a9c8ff}
 .pill.or{background:#fde9d6;color:#b25400}.pill.ok{background:#d9f3e8;color:#14704b}.pill.bad{background:#fbe0e0;color:#a52a2a}
@@ -51,7 +51,7 @@ th,td{padding:11px 10px;border-bottom:1px solid var(--bd)}tr:last-child td{borde
 .ro{opacity:.55;pointer-events:none}
 @media(max-width:860px){aside{position:fixed;z-index:30;left:-260px;top:0;padding-top:calc(16px + env(safe-area-inset-top,0px))}aside.open{left:0}.burger{display:inline-block}.wrap{padding:16px}header{padding:10px 14px;padding-top:calc(10px + env(safe-area-inset-top,0px))}}
 body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);background:var(--card);z-index:10}
-.steps{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}.steps span{padding:6px 12px;border-radius:99px;background:var(--card);border:1px solid var(--bd);color:var(--mu);font-weight:600;font-size:13px}.steps .on{background:var(--or);border-color:var(--or);color:#fff}.steps .dn{background:var(--bl);border-color:var(--bl);color:#fff}.drop{display:block;text-align:center;padding:36px 16px;border:2px dashed var(--or);cursor:pointer}.tabs{display:flex;gap:6px;margin-bottom:16px;border-bottom:1px solid var(--bd)}.tabs button{background:none;border:0;padding:10px 14px;cursor:pointer;color:var(--mu);font-weight:600;border-bottom:3px solid transparent}.tabs .on{color:var(--tx);border-color:var(--or)}.chk{display:flex;align-items:center;gap:8px;padding:6px 0}.chk input{width:auto}
+.steps{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}.steps span{padding:6px 12px;border-radius:99px;background:var(--card);border:1px solid var(--bd);color:var(--mu);font-weight:600;font-size:13px}.steps .on{background:var(--or);border-color:var(--or);color:var(--on-or)}.steps .dn{background:var(--bl);border-color:var(--bl);color:var(--on-bl)}.drop{display:block;text-align:center;padding:36px 16px;border:2px dashed var(--or);cursor:pointer}.tabs{display:flex;gap:6px;margin-bottom:16px;border-bottom:1px solid var(--bd)}.tabs button{background:none;border:0;padding:10px 14px;cursor:pointer;color:var(--mu);font-weight:600;border-bottom:3px solid transparent}.tabs .on{color:var(--tx);border-color:var(--or)}.chk{display:flex;align-items:center;gap:8px;padding:6px 0}.chk input{width:auto}
 </style><script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script></head><body>
 <div class="app">
 <aside id="side"><div class="logo"><i>N</i>Nexora CRM</div><nav class="nav" id="nav"></nav></aside>

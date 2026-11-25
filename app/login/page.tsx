@@ -111,12 +111,42 @@ function LoginForm() {
 
   return (
     <div className="login-container">
+      {/* Brand / hero panel (hidden on small screens) */}
+      <aside className="login-hero" aria-hidden="true">
+        <div className="login-hero-top">
+          <div className="login-logo-badge login-hero-logo">N</div>
+          <span className="login-hero-name">Nexora</span>
+        </div>
+
+        <div className="login-hero-body">
+          <span className="login-hero-eyebrow">Staffing Sourcing Platform</span>
+          <h2>
+            People. <em>Talent.</em>
+            <br />
+            Growth.
+          </h2>
+          <p>
+            One workspace for leads, candidates, client accounts and open
+            requisitions — from first call to placement.
+          </p>
+
+          <ul className="login-hero-points">
+            <li><i>◆</i> Visual pipeline from New to Placed</li>
+            <li><i>◆</i> Client accounts and open mandates in one place</li>
+            <li><i>◆</i> Role-based access with a full audit trail</li>
+          </ul>
+        </div>
+
+        <div className="login-hero-foot">Nexora Staffing LLP</div>
+      </aside>
+
+      <main className="login-panel">
       <div className="login-card">
         {/* Brand Header */}
         <div className="login-brand">
           <div className="login-logo-badge">N</div>
-          <h1>Nexora CRM</h1>
-          <p className="login-sub">People, Talent, Growth — Staffing Sourcing Platform</p>
+          <h1>Welcome back</h1>
+          <p className="login-sub">Sign in to Nexora CRM to continue</p>
         </div>
 
         {/* Corporate Domain Security Banner */}
@@ -256,6 +286,7 @@ function LoginForm() {
           <span>Nexora Staffing LLP • Secure Internal CRM</span>
         </div>
       </div>
+      </main>
 
       {/* Google Account Selector Dialog */}
       {showGoogleModal && (

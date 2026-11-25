@@ -469,7 +469,7 @@ export default function LeadsPage() {
                               href={`/leads/${lead.id}`}
                               style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none", color: "inherit" }}
                             >
-                              <span className="av" style={{ background: "linear-gradient(135deg, #1F6FEB, #8a2be2)" }}>
+                              <span className="av" style={{ background: "linear-gradient(135deg, #8FB8D8, #F26A21)", color: "#171717" }}>
                                 {getInitials(lead.name)}
                               </span>
                               <div>
