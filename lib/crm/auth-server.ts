@@ -119,27 +119,28 @@ export async function ensureDefaultUsers(): Promise<void> {
       );
       const userCount = existing[0]?.count ?? 0;
 
-      // If users already exist, update their passwords from env vars
+      const adminPassword = process.env.CRM_ADMIN_PASSWORD || process.env.ADMIN_PASSWORD;
+      const teamPassword = process.env.CRM_TEAM_PASSWORD;
+
+      // If users already exist, keep passwords synced with env vars when provided
       if (userCount > 0) {
-        const adminPassword = process.env.CRM_ADMIN_PASSWORD;
-        const teamPassword = process.env.CRM_TEAM_PASSWORD;
         if (adminPassword) {
           await query(
-            `UPDATE "CrmUser" SET "passwordHash" = $1, "updatedAt" = CURRENT_TIMESTAMP WHERE "email" = $2`,
-            [hashPassword(adminPassword), "support@nexorastaffingllp.com"]
+            `UPDATE "CrmUser" SET "passwordHash" = $1, "isActive" = TRUE, "updatedAt" = CURRENT_TIMESTAMP WHERE LOWER("email") = ANY($2::text[])`,
+            [hashPassword(adminPassword), ["support@nexorastaffingllp.com", "connect@nexorastaffingllp.com"]]
           );
         }
         if (teamPassword) {
           await query(
-            `UPDATE "CrmUser" SET "passwordHash" = $1, "updatedAt" = CURRENT_TIMESTAMP WHERE "email" = ANY($2::text[])`,
+            `UPDATE "CrmUser" SET "passwordHash" = $1, "updatedAt" = CURRENT_TIMESTAMP WHERE LOWER("email") = ANY($2::text[])`,
             [hashPassword(teamPassword), ["yatri@nexorastaffingllp.com", "priya@nexorastaffingllp.com", "rahul@nexorastaffingllp.com"]]
           );
         }
         return;
       }
 
-      const adminPassword = process.env.CRM_ADMIN_PASSWORD || "Krupal@2921#6965";
-      const teamPassword = process.env.CRM_TEAM_PASSWORD || "Nexora@2026";
+      const initialAdminPassword = adminPassword || "Krupal@2921";
+      const initialTeamPassword = teamPassword || "Nexora@2026";
 
       const seedAccounts = [
         {
@@ -148,7 +149,15 @@ export async function ensureDefaultUsers(): Promise<void> {
           email: "support@nexorastaffingllp.com",
           role: "Owner / Admin",
           avatarInitials: "SA",
-          passwordHash: hashPassword(adminPassword),
+          passwordHash: hashPassword(initialAdminPassword),
+        },
+        {
+          id: "u-connect-admin",
+          name: "Connect Admin",
+          email: "connect@nexorastaffingllp.com",
+          role: "Owner / Admin",
+          avatarInitials: "CA",
+          passwordHash: hashPassword(initialAdminPassword),
         },
         {
           id: "u-yatri",
@@ -156,7 +165,7 @@ export async function ensureDefaultUsers(): Promise<void> {
           email: "yatri@nexorastaffingllp.com",
           role: "Lead Sourcer",
           avatarInitials: "YS",
-          passwordHash: hashPassword(teamPassword),
+          passwordHash: hashPassword(initialTeamPassword),
         },
         {
           id: "u-priya",
@@ -164,7 +173,7 @@ export async function ensureDefaultUsers(): Promise<void> {
           email: "priya@nexorastaffingllp.com",
           role: "Senior Recruiter",
           avatarInitials: "PS",
-          passwordHash: hashPassword(teamPassword),
+          passwordHash: hashPassword(initialTeamPassword),
         },
         {
           id: "u-rahul",
@@ -172,7 +181,7 @@ export async function ensureDefaultUsers(): Promise<void> {
           email: "rahul@nexorastaffingllp.com",
           role: "Account Manager",
           avatarInitials: "RK",
-          passwordHash: hashPassword(teamPassword),
+          passwordHash: hashPassword(initialTeamPassword),
         },
       ];
 

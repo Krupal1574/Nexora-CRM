@@ -155,7 +155,7 @@ export async function POST(req: NextRequest) {
       actionType: "Google Sheet Sync",
     });
 
-    void sendSecurityAlert({
+    await sendSecurityAlert({
       eventType: "GOOGLE_SHEET_SYNC",
       severity: "warning",
       actorEmail: session?.email || "unknown",

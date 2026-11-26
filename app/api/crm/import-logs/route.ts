@@ -43,13 +43,13 @@ export async function POST(req: NextRequest) {
       });
     });
 
-    if (actionType === "Export") {
-      void sendSecurityAlert({
+    if (actionType === "Export" || actionType === "Export Attempt") {
+      await sendSecurityAlert({
         eventType: "EXPORT",
         severity: "high",
         actorEmail: session?.email || "unknown",
         actorName: actor,
-        pagePath: "/import",
+        pagePath: String(body.pagePath || "/import"),
         ipAddress: req.headers.get("x-forwarded-for") || "",
         userAgent: req.headers.get("user-agent") || "",
         details: `Exported ${addedCount} ${targetType} record(s) to "${sourceName}". ${body.details || ""}`.trim(),

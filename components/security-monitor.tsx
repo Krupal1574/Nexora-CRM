@@ -100,16 +100,26 @@ export function SecurityMonitor() {
       }
     };
 
+    const handleBeforePrint = () => {
+      reportEvent(
+        "PRINT_ATTEMPT",
+        `Browser print dialog opened on ${pathname}`,
+        "Security notice: Print attempt logged & reported to support@nexorastaffingllp.com."
+      );
+    };
+
     document.addEventListener("copy", handleCopy);
     document.addEventListener("cut", handleCut);
     window.addEventListener("keydown", handleKeyDown);
     window.addEventListener("keyup", handleKeyUp);
+    window.addEventListener("beforeprint", handleBeforePrint);
 
     return () => {
       document.removeEventListener("copy", handleCopy);
       document.removeEventListener("cut", handleCut);
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
+      window.removeEventListener("beforeprint", handleBeforePrint);
     };
   }, [pathname, show]);
 

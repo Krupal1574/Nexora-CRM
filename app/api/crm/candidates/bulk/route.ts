@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
       actionType: body.actionType || "Import",
     });
 
-    void sendSecurityAlert({
+    await sendSecurityAlert({
       eventType: "IMPORT",
       severity: "warning",
       actorEmail: session?.email || "unknown",

@@ -121,12 +121,26 @@ export default function ClientsPage() {
     const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
     const encoded = encodeURI(csvContent);
     const link = document.createElement("a");
+    const filename = `nexora-clients-${new Date().toISOString().slice(0, 10)}.csv`;
     link.setAttribute("href", encoded);
-    link.setAttribute("download", `nexora-clients-${new Date().toISOString().slice(0, 10)}.csv`);
+    link.setAttribute("download", filename);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     show(`Exported ${filteredClients.length} clients.`);
+    fetch("/api/crm/import-logs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({
+        actionType: "Export",
+        targetType: "Clients",
+        sourceName: filename,
+        addedCount: filteredClients.length,
+        pagePath: "/clients",
+        details: `Exported ${filteredClients.length} clients from /clients as CSV`,
+      }),
+    }).catch(() => {});
   };
 
   return (

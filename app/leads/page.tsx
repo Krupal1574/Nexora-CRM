@@ -309,12 +309,26 @@ export default function LeadsPage() {
       [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
     const encoded = encodeURI(csvContent);
     const link = document.createElement("a");
+    const filename = `nexora-leads-${new Date().toISOString().slice(0, 10)}.csv`;
     link.setAttribute("href", encoded);
-    link.setAttribute("download", `nexora-leads-${new Date().toISOString().slice(0, 10)}.csv`);
+    link.setAttribute("download", filename);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     show(`Exported ${filtered.length} leads in exact staffing format.`);
+    fetch("/api/crm/import-logs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({
+        actionType: "Export",
+        targetType: "Leads",
+        sourceName: filename,
+        addedCount: filtered.length,
+        pagePath: "/leads",
+        details: `Exported ${filtered.length} leads from /leads as CSV`,
+      }),
+    }).catch(() => {});
   };
 
   return (

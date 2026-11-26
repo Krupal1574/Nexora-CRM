@@ -127,12 +127,26 @@ export default function CandidatesPage() {
     const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
     const encoded = encodeURI(csvContent);
     const link = document.createElement("a");
+    const filename = `nexora-candidates-${new Date().toISOString().slice(0, 10)}.csv`;
     link.setAttribute("href", encoded);
-    link.setAttribute("download", `nexora-candidates-${new Date().toISOString().slice(0, 10)}.csv`);
+    link.setAttribute("download", filename);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     show(`Exported ${filteredCandidates.length} candidates.`);
+    fetch("/api/crm/import-logs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({
+        actionType: "Export",
+        targetType: "Candidates",
+        sourceName: filename,
+        addedCount: filteredCandidates.length,
+        pagePath: "/candidates",
+        details: `Exported ${filteredCandidates.length} candidates from /candidates as CSV`,
+      }),
+    }).catch(() => {});
   };
 
   return (

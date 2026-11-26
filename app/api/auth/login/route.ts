@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (isDeactivatedEmail(email)) {
-      void sendSecurityAlert({
+      await sendSecurityAlert({
         eventType: "LOGIN_FAILED",
         severity: "high",
         actorEmail: email,
@@ -80,7 +80,7 @@ export async function POST(req: NextRequest) {
 
     const dbUser = rows[0];
     if (!dbUser || !dbUser.isActive || !verifyPassword(password.trim(), dbUser.passwordHash)) {
-      void sendSecurityAlert({
+      await sendSecurityAlert({
         eventType: "LOGIN_FAILED",
         severity: "warning",
         actorEmail: email,

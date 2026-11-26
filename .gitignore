@@ -89,3 +89,6 @@ tmp/
 
 # ─── Custom Project Rules ───
 # Add your custom rules below
+
+.vercel
+.env*

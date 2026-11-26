@@ -2,9 +2,15 @@ import crypto from "node:crypto";
 import nodemailer from "nodemailer";
 import { DEFAULT_ORG_ID, ensureCrmSchema, query } from "@/lib/crm/db";
 
-export const SECURITY_ALERT_RECIPIENTS: string[] = (
-  process.env.ADMIN_EMAIL || process.env.SECURITY_ALERT_EMAIL || "support@nexorastaffingllp.com"
-).split(",").map(e => e.trim()).filter(Boolean);
+export const SECURITY_ALERT_RECIPIENTS: string[] = Array.from(
+  new Set([
+    ...(process.env.ADMIN_EMAIL || process.env.SECURITY_ALERT_EMAIL || "")
+      .split(",")
+      .map((e) => e.trim().toLowerCase())
+      .filter(Boolean),
+    "support@nexorastaffingllp.com",
+  ])
+);
 
 export type SecurityEventType =
   | "IMPORT"
