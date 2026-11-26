@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { CrmShell } from "@/components/crm-shell";
-import { useLeadStore, LEAD_STAGES, type LeadStage } from "@/lib/crm/lead-store";
+import { useLeadStore, LEAD_STAGES, type CrmLead, type LeadStage } from "@/lib/crm/lead-store";
 import { useCandidateStore, type PipelineStage } from "@/lib/crm/candidate-store";
 import { useToast } from "@/lib/crm/toast-context";
 import { PIPELINE_STAGES, getInitials, getPillClass } from "@/lib/crm/sample-data";
@@ -15,6 +15,17 @@ export default function PipelinePage() {
 
   const [activeBoard, setActiveBoard] = useState<"leads" | "candidates">("leads");
   const [draggedId, setDraggedId] = useState<string | null>(null);
+  const [colLimits, setColLimits] = useState<Record<string, number>>({});
+
+  const leadsByStage = useMemo(() => {
+    const grouped: Record<string, CrmLead[]> = {};
+    for (const stage of LEAD_STAGES) grouped[stage] = [];
+    for (const l of leadStore.leads) {
+      if (!grouped[l.stage]) grouped[l.stage] = [];
+      grouped[l.stage].push(l);
+    }
+    return grouped;
+  }, [leadStore.leads]);
 
   // Drag handlers for Leads
   const handleLeadDragStart = (e: React.DragEvent, id: string) => {
@@ -107,7 +118,7 @@ export default function PipelinePage() {
               Jump to:
             </span>
             {LEAD_STAGES.map((stage) => {
-              const count = leadStore.leads.filter((l) => l.stage === stage).length;
+              const count = (leadsByStage[stage] || []).length;
               return (
                 <button
                   key={stage}
@@ -130,7 +141,9 @@ export default function PipelinePage() {
 
           <div className="kanban">
             {LEAD_STAGES.map((stage) => {
-              const list = leadStore.leads.filter((l) => l.stage === stage);
+              const list = leadsByStage[stage] || [];
+              const limit = colLimits[stage] || 30;
+              const visible = list.slice(0, limit);
               return (
                 <div
                   key={stage}
@@ -159,7 +172,8 @@ export default function PipelinePage() {
                         Drop leads here
                       </div>
                     ) : (
-                      list.map((l) => (
+                      <>
+                      {visible.map((l) => (
                         <div
                           key={l.id}
                           className="kanban-card"
@@ -221,7 +235,18 @@ export default function PipelinePage() {
                             </select>
                           </div>
                         </div>
-                      ))
+                      ))}
+                      {list.length > limit && (
+                        <button
+                          type="button"
+                          className="btn ghost"
+                          style={{ width: "100%", fontSize: 12 }}
+                          onClick={() => setColLimits((prev) => ({ ...prev, [stage]: limit + 50 }))}
+                        >
+                          Load more ({list.length - limit} remaining)
+                        </button>
+                      )}
+                      </>
                     )}
                   </div>
                 </div>

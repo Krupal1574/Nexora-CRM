@@ -381,13 +381,13 @@ export default function TasksPage() {
 
             {form.relatedType === "lead" && (
               <div>
-                <label style={{ fontSize: 12, fontWeight: 600, display: "block", marginBottom: 4 }}>Select Lead</label>
+                <label style={{ fontSize: 12, fontWeight: 600, display: "block", marginBottom: 4 }}>Select Lead (showing top 150)</label>
                 <select
                   value={form.relatedId}
                   onChange={(e) => setForm({ ...form, relatedId: e.target.value })}
                 >
                   <option value="">— Choose Lead —</option>
-                  {leadStore.leads.map((l) => (
+                  {leadStore.leads.slice(0, 150).map((l) => (
                     <option key={l.id} value={l.id}>{l.name} ({l.company})</option>
                   ))}
                 </select>

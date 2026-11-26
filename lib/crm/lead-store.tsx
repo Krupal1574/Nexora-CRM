@@ -139,6 +139,8 @@ function seedLeads(): CrmLead[] {
 
 function mapApiLead(l: any): CrmLead {
   const dbNotes: LeadNote[] = Array.isArray(l.dbNotes) ? l.dbNotes : [];
+  const createdIso = typeof l.createdAt === "string" ? l.createdAt : new Date().toISOString();
+  const updatedIso = typeof l.updatedAt === "string" ? l.updatedAt : createdIso;
   const remarkNote: LeadNote[] =
     l.remark && !dbNotes.some((n) => n.text === l.remark)
       ? [
@@ -146,7 +148,7 @@ function mapApiLead(l: any): CrmLead {
             id: `note-remark-${l.id}`,
             text: l.remark,
             author: l.leadPerson || "Team",
-            createdAt: l.createdAt || new Date().toISOString(),
+            createdAt: createdIso,
           },
         ]
       : [];
@@ -159,11 +161,7 @@ function mapApiLead(l: any): CrmLead {
     temperature: l.temperature || "New",
     owner: l.salesPerson || l.owner || "Support Admin",
     value: l.value || "₹5.0L",
-    date:
-      l.date ||
-      (l.createdAt
-        ? new Date(l.createdAt).toISOString().split("T")[0]
-        : new Date().toISOString().split("T")[0]),
+    date: l.date || createdIso.slice(0, 10),
     location: l.location || "USA",
     phone: l.phone || "",
     email: l.email || "",
@@ -178,21 +176,12 @@ function mapApiLead(l: any): CrmLead {
     accountRef: l.accountRef || "",
     remark: l.remark || "",
     stage: (l.stage as LeadStage) || "New Lead",
-    notes: [...dbNotes, ...remarkNote],
-    activities: [
-      {
-        id: `act-${l.id}`,
-        type: "creation" as ActivityType,
-        title: "Lead synchronized",
-        description: `Synchronized from PostgreSQL CRM database.`,
-        author: l.owner || "System",
-        createdAt: l.createdAt || new Date().toISOString(),
-      },
-    ],
+    notes: dbNotes.length > 0 || remarkNote.length > 0 ? [...dbNotes, ...remarkNote] : [],
+    activities: [],
     profileUrls: l.linkedin ? [l.linkedin] : [],
     tags: [l.technology, l.visaStatus, l.location].filter(Boolean) as string[],
-    createdAt: l.createdAt || new Date().toISOString(),
-    updatedAt: l.updatedAt || new Date().toISOString(),
+    createdAt: createdIso,
+    updatedAt: updatedIso,
   };
 }
 

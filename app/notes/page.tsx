@@ -14,6 +14,8 @@ export default function NotesPage() {
   const { show } = useToast();
 
   const [search, setSearch] = useState("");
+  const [notesLimit, setNotesLimit] = useState(100);
+  const [leadFilter, setLeadFilter] = useState("");
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState({
     targetType: "lead" as "lead" | "candidate",
@@ -117,7 +119,7 @@ export default function NotesPage() {
         </div>
       ) : (
         <div style={{ display: "grid", gap: 12 }}>
-          {allNotes.map((n) => (
+          {allNotes.slice(0, notesLimit).map((n) => (
             <div key={n.id} className="card note" style={{ padding: 14 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
                 <div>
@@ -135,6 +137,15 @@ export default function NotesPage() {
               <p style={{ margin: 0, color: "var(--tx)", lineHeight: 1.5 }}>{n.content}</p>
             </div>
           ))}
+          {allNotes.length > notesLimit && (
+            <button
+              type="button"
+              className="btn ghost"
+              onClick={() => setNotesLimit((n) => n + 100)}
+            >
+              Show more notes ({allNotes.length - notesLimit} remaining)
+            </button>
+          )}
         </div>
       )}
 
@@ -162,14 +173,27 @@ export default function NotesPage() {
               </div>
               <div>
                 <label style={{ fontSize: 12, fontWeight: 600, display: "block", marginBottom: 4 }}>Select Record</label>
+                {form.targetType === "lead" && leadStore.leads.length > 50 && (
+                  <input
+                    placeholder="Filter leads by name…"
+                    value={leadFilter}
+                    onChange={(e) => setLeadFilter(e.target.value)}
+                    style={{ marginBottom: 6, fontSize: 12 }}
+                  />
+                )}
                 <select
                   value={form.targetId}
                   onChange={(e) => setForm({ ...form, targetId: e.target.value })}
                 >
                   {form.targetType === "lead"
-                    ? leadStore.leads.map((l) => (
-                        <option key={l.id} value={l.id}>{l.name} ({l.company})</option>
-                      ))
+                    ? (leadFilter.trim()
+                        ? leadStore.leads.filter((l) => l.name.toLowerCase().includes(leadFilter.toLowerCase()))
+                        : leadStore.leads
+                      )
+                        .slice(0, 150)
+                        .map((l) => (
+                          <option key={l.id} value={l.id}>{l.name} ({l.company})</option>
+                        ))
                     : candStore.candidates.map((c) => (
                         <option key={c.id} value={c.id}>{c.name} – {c.role}</option>
                       ))}

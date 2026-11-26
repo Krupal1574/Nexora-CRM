@@ -39,6 +39,9 @@ export default function LeadsPage() {
   const [filterLocation, setFilterLocation] = useState<string>("All");
   const [sortBy, setSortBy] = useState<"date" | "name" | "technology">("date");
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
+  const [kanbanLimits, setKanbanLimits] = useState<Record<string, number>>({});
 
   // Table horizontal slide-bar controller
   const tableContainerRef = useRef<HTMLDivElement>(null);
@@ -89,10 +92,15 @@ export default function LeadsPage() {
     stage: "New Lead" as LeadStage,
   });
 
-  // Extract locations dynamically
-  const locations = useMemo(() => {
-    const locs = new Set(store.leads.map((l) => l.location).filter(Boolean));
-    return Array.from(locs);
+  // Extract locations & stage counts in one pass
+  const { locations, stageCounts } = useMemo(() => {
+    const locs = new Set<string>();
+    const counts: Record<string, number> = {};
+    for (const l of store.leads) {
+      if (l.location) locs.add(l.location);
+      counts[l.stage] = (counts[l.stage] || 0) + 1;
+    }
+    return { locations: Array.from(locs), stageCounts: counts };
   }, [store.leads]);
 
   // Filtered & sorted leads
@@ -114,13 +122,34 @@ export default function LeadsPage() {
     if (filterLeadType !== "All") list = list.filter((l) => l.leadType === filterLeadType);
     if (filterLocation !== "All") list = list.filter((l) => l.location === filterLocation);
 
-    list = [...list].sort((a, b) => {
+    return [...list].sort((a, b) => {
       if (sortBy === "name") return a.name.localeCompare(b.name);
       if (sortBy === "technology") return (a.technology || "").localeCompare(b.technology || "");
       return (b.date || b.createdAt).localeCompare(a.date || a.createdAt);
     });
-    return list;
   }, [store.leads, search, filterStage, filterLeadType, filterLocation, sortBy]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, filterStage, filterLeadType, filterLocation, sortBy, pageSize]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const pageStart = (safePage - 1) * pageSize;
+  const paginatedLeads = useMemo(
+    () => filtered.slice(pageStart, pageStart + pageSize),
+    [filtered, pageStart, pageSize]
+  );
+
+  const filteredByStage = useMemo(() => {
+    const grouped: Record<string, CrmLead[]> = {};
+    for (const s of LEAD_STAGES) grouped[s] = [];
+    for (const l of filtered) {
+      if (!grouped[l.stage]) grouped[l.stage] = [];
+      grouped[l.stage].push(l);
+    }
+    return grouped;
+  }, [filtered]);
 
   const toggleSelect = (id: string) => {
     setSelected((prev) => {
@@ -130,12 +159,19 @@ export default function LeadsPage() {
     });
   };
 
+  const allPageSelected =
+    paginatedLeads.length > 0 && paginatedLeads.every((l) => selected.has(l.id));
+
   const toggleSelectAll = () => {
-    if (selected.size === filtered.length) {
-      setSelected(new Set());
-    } else {
-      setSelected(new Set(filtered.map((l) => l.id)));
-    }
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (allPageSelected) {
+        paginatedLeads.forEach((l) => next.delete(l.id));
+      } else {
+        paginatedLeads.forEach((l) => next.add(l.id));
+      }
+      return next;
+    });
   };
 
   const handleCreate = (e: React.FormEvent) => {
@@ -363,7 +399,7 @@ export default function LeadsPage() {
           <option value="All">All stages ({store.leads.length})</option>
           {LEAD_STAGES.map((s) => (
             <option key={s} value={s}>
-              {s} ({store.leads.filter((l) => l.stage === s).length})
+              {s} ({stageCounts[s] || 0})
             </option>
           ))}
         </select>
@@ -444,10 +480,10 @@ export default function LeadsPage() {
                       <th style={{ width: 48, minWidth: 48, textAlign: "center" }}>
                         <input
                           type="checkbox"
-                          checked={selected.size === filtered.length && filtered.length > 0}
+                          checked={allPageSelected}
                           onChange={toggleSelectAll}
                           style={{ width: "auto", cursor: "pointer" }}
-                          aria-label="Select all leads"
+                          aria-label="Select all leads on this page"
                         />
                       </th>
                       <th style={{ width: 110, minWidth: 110 }}>Date</th>
@@ -462,7 +498,7 @@ export default function LeadsPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filtered.map((lead) => {
+                    {paginatedLeads.map((lead) => {
                       const isSelected = selected.has(lead.id);
                       return (
                         <tr key={lead.id} className={isSelected ? "row-selected" : ""}>
@@ -673,17 +709,92 @@ export default function LeadsPage() {
                 </table>
               </div>
 
+              {/* Pagination & Slide Bar */}
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  gap: 10,
+                  padding: "10px 14px",
+                  borderTop: "1px solid var(--bd)",
+                  background: "var(--card)",
+                  fontSize: 12.5,
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 10, color: "var(--mu)" }}>
+                  <span>
+                    Showing <b>{pageStart + 1}</b>–<b>{Math.min(pageStart + pageSize, filtered.length)}</b> of{" "}
+                    <b>{filtered.length.toLocaleString()}</b> leads
+                  </span>
+                  <select
+                    value={pageSize}
+                    onChange={(e) => setPageSize(Number(e.target.value))}
+                    style={{ width: "auto", padding: "4px 8px", fontSize: 12 }}
+                    aria-label="Rows per page"
+                  >
+                    <option value={50}>50 / page</option>
+                    <option value={100}>100 / page</option>
+                    <option value={250}>250 / page</option>
+                    <option value={500}>500 / page</option>
+                  </select>
+                </div>
+
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <button
+                    type="button"
+                    className="btn ghost"
+                    style={{ padding: "4px 10px", fontSize: 12 }}
+                    disabled={safePage <= 1}
+                    onClick={() => setPage(1)}
+                  >
+                    « First
+                  </button>
+                  <button
+                    type="button"
+                    className="btn ghost"
+                    style={{ padding: "4px 10px", fontSize: 12 }}
+                    disabled={safePage <= 1}
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  >
+                    ‹ Prev
+                  </button>
+                  <span style={{ padding: "0 8px", fontWeight: 600 }}>
+                    Page {safePage} of {totalPages}
+                  </span>
+                  <button
+                    type="button"
+                    className="btn ghost"
+                    style={{ padding: "4px 10px", fontSize: 12 }}
+                    disabled={safePage >= totalPages}
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  >
+                    Next ›
+                  </button>
+                  <button
+                    type="button"
+                    className="btn ghost"
+                    style={{ padding: "4px 10px", fontSize: 12 }}
+                    disabled={safePage >= totalPages}
+                    onClick={() => setPage(totalPages)}
+                  >
+                    Last »
+                  </button>
+                </div>
+              </div>
+
               {/* Dedicated Slide Bar at the bottom */}
               <div className="table-footer-slide-bar">
                 <div className="slide-bar-info">
                   <span className="slide-bar-counter">
                     {selected.size > 0 ? (
                       <span style={{ color: "var(--or)" }}>
-                        <b>{selected.size}</b> of {filtered.length} leads selected
+                        <b>{selected.size}</b> selected ({filtered.length.toLocaleString()} total)
                       </span>
                     ) : (
                       <span>
-                        Showing <b>{filtered.length}</b> leads • 10 columns
+                        Page <b>{safePage}</b>/{totalPages} • <b>{paginatedLeads.length}</b> rows visible
                       </span>
                     )}
                   </span>
@@ -742,7 +853,7 @@ export default function LeadsPage() {
               Jump to:
             </span>
             {LEAD_STAGES.map((stage) => {
-              const count = filtered.filter((l) => l.stage === stage).length;
+              const count = (filteredByStage[stage] || []).length;
               return (
                 <button
                   key={stage}
@@ -765,7 +876,9 @@ export default function LeadsPage() {
 
           <div className="kanban">
             {LEAD_STAGES.map((stage) => {
-              const list = filtered.filter((l) => l.stage === stage);
+              const list = filteredByStage[stage] || [];
+              const colLimit = kanbanLimits[stage] || 30;
+              const visibleList = list.slice(0, colLimit);
               return (
                 <div
                   key={stage}
@@ -790,7 +903,8 @@ export default function LeadsPage() {
                       Drop leads here
                     </div>
                   ) : (
-                    list.map((lead) => (
+                    <>
+                    {visibleList.map((lead) => (
                       <div
                         key={lead.id}
                         className="kanban-card"
@@ -847,7 +961,20 @@ export default function LeadsPage() {
                           </select>
                         </div>
                       </div>
-                    ))
+                    ))}
+                    {list.length > colLimit && (
+                      <button
+                        type="button"
+                        className="btn ghost"
+                        style={{ width: "100%", fontSize: 12, marginTop: 6 }}
+                        onClick={() =>
+                          setKanbanLimits((prev) => ({ ...prev, [stage]: colLimit + 50 }))
+                        }
+                      >
+                        Load more ({list.length - colLimit} remaining)
+                      </button>
+                    )}
+                    </>
                   )}
                 </div>
               );
