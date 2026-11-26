@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getSessionFromRequest } from "@/lib/crm/auth-server";
 import { executeBulkImport, type DuplicateStrategy } from "@/lib/crm/bulk-import";
 import { DEFAULT_DUPLICATE_OPTIONS, type DuplicateMatchOptions } from "@/lib/crm/duplicates";
 import type { NormalizedImportRow } from "@/lib/crm/import-utils";
+import { sendSecurityAlert } from "@/lib/crm/mailer";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
   try {
+    const session = getSessionFromRequest(req);
     const body = await req.json();
     const rows: NormalizedImportRow[] = Array.isArray(body.rows) ? body.rows : [];
     const duplicateMode: DuplicateStrategy = body.duplicateMode || "skip";
@@ -19,14 +22,26 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const actor = session?.name || body.actor || "Support Admin";
     const summary = await executeBulkImport({
       targetType: "leads",
       rows,
       duplicateMode,
       matchOptions,
       sourceName: body.sourceName || "Spreadsheet Import",
-      actor: body.actor || "Support Admin",
+      actor,
       actionType: body.actionType || "Import",
+    });
+
+    void sendSecurityAlert({
+      eventType: "IMPORT",
+      severity: "warning",
+      actorEmail: session?.email || "unknown",
+      actorName: actor,
+      pagePath: "/import",
+      ipAddress: req.headers.get("x-forwarded-for") || "",
+      userAgent: req.headers.get("user-agent") || "",
+      details: `Imported Leads from "${body.sourceName || "Spreadsheet"}": +${summary.addedCount} added, ${summary.updatedCount} updated, ${summary.skippedCount} skipped (total ${summary.totalReceived} rows).`,
     });
 
     return NextResponse.json({ success: true, summary }, { status: 201 });

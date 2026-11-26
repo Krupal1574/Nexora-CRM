@@ -1,8 +1,10 @@
 import crypto from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
+import { getSessionFromRequest } from "@/lib/crm/auth-server";
 import { DEFAULT_ORG_ID, ensureCrmSchema, query } from "@/lib/crm/db";
 import { executeBulkImport, type DuplicateStrategy } from "@/lib/crm/bulk-import";
 import { fetchGoogleSheetCsv, parseGoogleSheetUrl } from "@/lib/crm/google-sheets";
+import { sendSecurityAlert } from "@/lib/crm/mailer";
 import {
   buildAutoColumnMapping,
   detectImportFormat,
@@ -141,14 +143,27 @@ export async function POST(req: NextRequest) {
 
     // action === "sync": import directly into Postgres & persist/update CrmSheetSource
     const effectiveName = sourceName || fetched.sheetTitle || `Google Sheet (${fetched.spreadsheetId.slice(0, 8)}…)`;
+    const session = getSessionFromRequest(req);
+    const effectiveActor = session?.name || actor;
     const summary = await executeBulkImport({
       targetType,
       rows: normalizedRows,
       duplicateMode,
       matchOptions,
       sourceName: effectiveName,
-      actor,
+      actor: effectiveActor,
       actionType: "Google Sheet Sync",
+    });
+
+    void sendSecurityAlert({
+      eventType: "GOOGLE_SHEET_SYNC",
+      severity: "warning",
+      actorEmail: session?.email || "unknown",
+      actorName: effectiveActor,
+      pagePath: "/import",
+      ipAddress: req.headers.get("x-forwarded-for") || "",
+      userAgent: req.headers.get("user-agent") || "",
+      details: `Synced ${targetType} from Google Sheet "${effectiveName}": +${summary.addedCount} added, ${summary.updatedCount} updated, ${summary.skippedCount} skipped.`,
     });
 
     let savedSource = null;

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getSessionFromRequest } from "@/lib/crm/auth-server";
 import { DEFAULT_ORG_ID, ensureCrmSchema, query, withTransaction } from "@/lib/crm/db";
 import { recordImportLog } from "@/lib/crm/bulk-import";
+import { sendSecurityAlert } from "@/lib/crm/mailer";
 
 export const dynamic = "force-dynamic";
 
@@ -19,20 +21,41 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
+    const session = getSessionFromRequest(req);
     await ensureCrmSchema();
     const body = await req.json();
+    const actionType = body.actionType || "Export";
+    const targetType = body.targetType || "Leads";
+    const sourceName = body.sourceName || "export.csv";
+    const addedCount = Number(body.addedCount) || 0;
+    const actor = session?.name || body.actor || "Support Admin";
+
     await withTransaction(async (client) => {
       await recordImportLog(client, {
-        actionType: body.actionType || "Export",
-        targetType: body.targetType || "Leads",
-        sourceName: body.sourceName || "export.csv",
-        addedCount: Number(body.addedCount) || 0,
+        actionType,
+        targetType,
+        sourceName,
+        addedCount,
         updatedCount: Number(body.updatedCount) || 0,
         skippedCount: Number(body.skippedCount) || 0,
-        actor: body.actor || "Support Admin",
+        actor,
         details: body.details || "",
       });
     });
+
+    if (actionType === "Export") {
+      void sendSecurityAlert({
+        eventType: "EXPORT",
+        severity: "high",
+        actorEmail: session?.email || "unknown",
+        actorName: actor,
+        pagePath: "/import",
+        ipAddress: req.headers.get("x-forwarded-for") || "",
+        userAgent: req.headers.get("user-agent") || "",
+        details: `Exported ${addedCount} ${targetType} record(s) to "${sourceName}". ${body.details || ""}`.trim(),
+      });
+    }
+
     return NextResponse.json({ success: true }, { status: 201 });
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err?.message || "Failed to record log." }, { status: 500 });

@@ -7,6 +7,7 @@ import { useCandidateStore } from "@/lib/crm/candidate-store";
 import { useJobStore } from "@/lib/crm/job-store";
 import { useTaskStore } from "@/lib/crm/task-store";
 import { useToast } from "@/lib/crm/toast-context";
+import { useAuth } from "@/lib/crm/auth-context";
 import { PIPELINE_STAGES, getInitials, getPillClass } from "@/lib/crm/sample-data";
 
 export default function DashboardPage() {
@@ -15,6 +16,8 @@ export default function DashboardPage() {
   const { jobs } = useJobStore();
   const { tasks, toggleTask } = useTaskStore();
   const { show } = useToast();
+  const { user } = useAuth();
+  const firstName = user?.name?.split(" ")[0] || "Team";
 
   const activeLeads = leads.filter((l) => l.stage !== "Not Interested").length;
   const talentPool = candidates.length;
@@ -34,7 +37,7 @@ export default function DashboardPage() {
     <CrmShell>
       <div className="page-top">
         <div>
-          <h1>Good morning, Krupal 👋</h1>
+          <h1>Good morning, {firstName} 👋</h1>
           <p className="page-sub">Here’s what’s happening across Nexora recruitment today.</p>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
@@ -50,7 +53,7 @@ export default function DashboardPage() {
           padding: 0,
           overflow: "hidden",
           marginBottom: 18,
-          background: "#fff",
+          background: "#f7f9fc",
         }}
       >
         <img
@@ -58,8 +61,8 @@ export default function DashboardPage() {
           alt="Nexora Staffing LLP — People Talent Growth"
           style={{
             width: "100%",
-            maxHeight: 150,
-            objectFit: "cover",
+            maxHeight: 190,
+            objectFit: "contain",
             objectPosition: "center",
             display: "block",
           }}

@@ -96,6 +96,36 @@ export async function ensureCrmSchema(): Promise<void> {
             "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
           );
 
+          CREATE TABLE IF NOT EXISTS "CrmUser" (
+            "id" TEXT PRIMARY KEY,
+            "organizationId" TEXT NOT NULL,
+            "name" TEXT NOT NULL,
+            "email" TEXT NOT NULL UNIQUE,
+            "role" TEXT NOT NULL DEFAULT 'Recruiter',
+            "avatarInitials" TEXT NOT NULL DEFAULT 'NX',
+            "passwordHash" TEXT NOT NULL,
+            "isActive" BOOLEAN NOT NULL DEFAULT TRUE,
+            "lastLoginAt" TIMESTAMP(3),
+            "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+          );
+
+          CREATE TABLE IF NOT EXISTS "CrmSecurityEvent" (
+            "id" TEXT PRIMARY KEY,
+            "organizationId" TEXT NOT NULL,
+            "eventType" TEXT NOT NULL,
+            "severity" TEXT NOT NULL DEFAULT 'info',
+            "actorEmail" TEXT NOT NULL DEFAULT '',
+            "actorName" TEXT NOT NULL DEFAULT '',
+            "pagePath" TEXT NOT NULL DEFAULT '',
+            "ipAddress" TEXT NOT NULL DEFAULT '',
+            "userAgent" TEXT NOT NULL DEFAULT '',
+            "details" TEXT NOT NULL DEFAULT '',
+            "emailSent" BOOLEAN NOT NULL DEFAULT FALSE,
+            "emailStatus" TEXT NOT NULL DEFAULT 'pending',
+            "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+          );
+
           CREATE INDEX IF NOT EXISTS "CrmLead_org_created_idx"
             ON "CrmLead" ("organizationId", "createdAt" DESC);
           CREATE INDEX IF NOT EXISTS "CrmNote_org_record_idx"
@@ -104,6 +134,8 @@ export async function ensureCrmSchema(): Promise<void> {
             ON "CrmSheetSource" ("organizationId", "updatedAt" DESC);
           CREATE INDEX IF NOT EXISTS "CrmImportLog_org_idx"
             ON "CrmImportLog" ("organizationId", "createdAt" DESC);
+          CREATE INDEX IF NOT EXISTS "CrmSecurityEvent_org_idx"
+            ON "CrmSecurityEvent" ("organizationId", "createdAt" DESC);
         `);
       } catch (err) {
         globalForDb.crmSchemaPromise = undefined;

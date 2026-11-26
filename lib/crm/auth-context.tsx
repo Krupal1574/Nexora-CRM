@@ -9,12 +9,10 @@ export interface AuthUser {
   email: string;
   role: "Owner / Admin" | "Senior Recruiter" | "Account Manager" | "Lead Sourcer" | "Recruiter" | "Viewer";
   avatarInitials: string;
-  authProvider?: "google" | "credentials";
 }
 
-/** Required corporate domains for Nexora CRM access */
-export const REQUIRED_DOMAIN = "@nexorastafingllp.com";
-export const ALLOWED_DOMAINS = ["@nexorastafingllp.com", "@nexorastaffingllp.com"];
+export const REQUIRED_DOMAIN = "@nexorastaffingllp.com";
+export const ALLOWED_DOMAINS = ["@nexorastaffingllp.com", "@nexorastafingllp.com"];
 
 export function isValidNexoraEmail(email: string): boolean {
   if (!email) return false;
@@ -22,83 +20,21 @@ export function isValidNexoraEmail(email: string): boolean {
   return ALLOWED_DOMAINS.some((domain) => lower.endsWith(domain));
 }
 
-/** Pre-configured corporate accounts */
-export const DEMO_USERS: AuthUser[] = [
-  {
-    id: "u-support-admin",
-    name: "Support Admin",
-    email: "support@nexorastaffingllp.com",
-    role: "Owner / Admin",
-    avatarInitials: "SA",
-    authProvider: "credentials",
-  },
-  {
-    id: "u-yatri",
-    name: "Yatri",
-    email: "yatri@nexorastafingllp.com",
-    role: "Lead Sourcer",
-    avatarInitials: "YS",
-    authProvider: "google",
-  },
-  {
-    id: "u-priya",
-    name: "Priya S.",
-    email: "priya@nexorastafingllp.com",
-    role: "Senior Recruiter",
-    avatarInitials: "PS",
-    authProvider: "google",
-  },
-  {
-    id: "u-rahul",
-    name: "Rahul K.",
-    email: "rahul@nexorastafingllp.com",
-    role: "Account Manager",
-    avatarInitials: "RK",
-    authProvider: "google",
-  },
-];
-
 interface AuthContextType {
   user: AuthUser | null;
   isLoading: boolean;
   isAdmin: boolean;
-  login: (email: string, password?: string) => { success: boolean; error?: string };
-  loginWithGoogle: (email: string, name?: string) => { success: boolean; error?: string };
-  loginAs: (user: AuthUser) => void;
-  logout: () => void;
+  login: (email: string, password: string, rememberMe?: boolean) => Promise<{ success: boolean; error?: string }>;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
   isLoading: true,
   isAdmin: false,
-  login: () => ({ success: false }),
-  loginWithGoogle: () => ({ success: false }),
-  loginAs: () => {},
-  logout: () => {},
+  login: async () => ({ success: false }),
+  logout: async () => {},
 });
-
-const COOKIE_NAME = "nexora_auth_user";
-
-function setAuthCookie(user: AuthUser) {
-  if (typeof document === "undefined") return;
-  const value = encodeURIComponent(JSON.stringify(user));
-  document.cookie = `${COOKIE_NAME}=${value}; path=/; max-age=2592000; SameSite=Lax`;
-}
-
-function clearAuthCookie() {
-  if (typeof document === "undefined") return;
-  document.cookie = `${COOKIE_NAME}=; path=/; max-age=0; SameSite=Lax`;
-}
-
-function getStoredUser(): AuthUser | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = localStorage.getItem(COOKIE_NAME);
-    if (raw) return JSON.parse(raw);
-  } catch {}
-  return null;
-}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -106,222 +42,66 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
 
   useEffect(() => {
-    // Hydrate from localStorage or cookie
-    const stored = getStoredUser();
-    if (stored) {
-      setUser(stored);
-      setAuthCookie(stored);
-    }
-    setIsLoading(false);
+    let active = true;
+    fetch("/api/auth/me", { credentials: "include" })
+      .then(async (res) => {
+        if (!res.ok) return null;
+        const data = await res.json();
+        return data?.authenticated ? (data.user as AuthUser) : null;
+      })
+      .then((sessionUser) => {
+        if (active) {
+          setUser(sessionUser);
+          setIsLoading(false);
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setUser(null);
+          setIsLoading(false);
+        }
+      });
+    return () => {
+      active = false;
+    };
   }, []);
 
-  const loginAs = (targetUser: AuthUser) => {
-    setUser(targetUser);
-    localStorage.setItem(COOKIE_NAME, JSON.stringify(targetUser));
-    setAuthCookie(targetUser);
-  };
-
-  const loginWithGoogle = (email: string, customName?: string): { success: boolean; error?: string } => {
-    if (!email || !email.includes("@")) {
-      return { success: false, error: "Please provide a valid Google account email." };
-    }
-
-    const trimmedEmail = email.trim().toLowerCase();
-
-    // Enforce required corporate domain
-    if (!isValidNexoraEmail(trimmedEmail)) {
-      return {
-        success: false,
-        error: `Access Denied: Only corporate Google accounts ending with ${REQUIRED_DOMAIN} are authorized to access Nexora CRM.`,
-      };
-    }
-
-    // Deactivated accounts
-    if (
-      trimmedEmail === "krupal@nexorastaffingllp.com" ||
-      trimmedEmail === "krupal@nexorastafingllp.com"
-    ) {
-      return {
-        success: false,
-        error: "Account deactivated: krupal@nexorastaffingllp.com has been removed. Please sign in with support@nexorastaffingllp.com.",
-      };
-    }
-
-    // Support Admin account via Google
-    if (
-      trimmedEmail === "support@nexorastaffingllp.com" ||
-      trimmedEmail === "support@nexorastafingllp.com"
-    ) {
-      const adminUser: AuthUser = {
-        id: "u-support-admin",
-        name: "Support Admin",
-        email: "support@nexorastaffingllp.com",
-        role: "Owner / Admin",
-        avatarInitials: "SA",
-        authProvider: "google",
-      };
-      loginAs(adminUser);
-      return { success: true };
-    }
-
-    // Check if matching predefined user
-    const matched = DEMO_USERS.find(
-      (u) => u.email.toLowerCase() === trimmedEmail
-    );
-
-    if (matched) {
-      loginAs({ ...matched, authProvider: "google" });
-      return { success: true };
-    }
-
-    // Build user from Google account
-    const username = trimmedEmail.split("@")[0].replace(/[._]/g, " ");
-    const formattedName =
-      customName ||
-      username
-        .split(" ")
-        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-        .join(" ");
-
-    const initials =
-      formattedName
-        .split(" ")
-        .map((w) => w.charAt(0).toUpperCase())
-        .join("")
-        .slice(0, 2) || "NX";
-
-    const googleUser: AuthUser = {
-      id: `u-google-${Date.now()}`,
-      name: formattedName || "Google Workspace Member",
-      email: trimmedEmail,
-      role: "Recruiter",
-      avatarInitials: initials,
-      authProvider: "google",
-    };
-
-    loginAs(googleUser);
-    return { success: true };
-  };
-
-  const login = (email: string, password?: string): { success: boolean; error?: string } => {
-    if (!email || !email.includes("@")) {
-      return { success: false, error: "Please enter a valid work email address." };
-    }
-
-    const trimmedEmail = email.trim().toLowerCase();
-
-    // Enforce corporate domain
-    if (!isValidNexoraEmail(trimmedEmail)) {
-      return {
-        success: false,
-        error: `Access Restricted: Nexora CRM requires a corporate email ending with ${REQUIRED_DOMAIN}.`,
-      };
-    }
-
-    // Deactivated accounts
-    if (
-      trimmedEmail === "krupal@nexorastaffingllp.com" ||
-      trimmedEmail === "krupal@nexorastafingllp.com"
-    ) {
-      return {
-        success: false,
-        error: "Account deactivated: krupal@nexorastaffingllp.com has been removed. Please sign in with support@nexorastaffingllp.com.",
-      };
-    }
-
-    // Common passwords
-    const COMMON_TEAM_PASSWORD = "Nexora@2026";
-    const ADMIN_PASSWORD = "Krupal@2921#6965";
-
-    // Validate password requirement
-    if (!password || !password.trim()) {
-      return {
-        success: false,
-        error: "Password is required to sign in.",
-      };
-    }
-
-    const trimmedPassword = password.trim();
-
-    // Specific password verification for Support Admin
-    if (
-      trimmedEmail === "support@nexorastaffingllp.com" ||
-      trimmedEmail === "support@nexorastafingllp.com"
-    ) {
-      if (trimmedPassword !== ADMIN_PASSWORD && trimmedPassword !== COMMON_TEAM_PASSWORD) {
-        return {
-          success: false,
-          error: "Incorrect password for Support Admin account.",
-        };
+  const login = async (
+    email: string,
+    password: string,
+    rememberMe = true
+  ): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ email, password, rememberMe }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        return { success: false, error: data.error || "Authentication failed." };
       }
-      const adminUser: AuthUser = {
-        id: "u-support-admin",
-        name: "Support Admin",
-        email: "support@nexorastaffingllp.com",
-        role: "Owner / Admin",
-        avatarInitials: "SA",
-        authProvider: "credentials",
-      };
-      loginAs(adminUser);
+      setUser(data.user as AuthUser);
       return { success: true };
+    } catch {
+      return { success: false, error: "Network error while signing in." };
     }
-
-    // Common password verification for all other team members
-    if (trimmedPassword !== COMMON_TEAM_PASSWORD) {
-      return {
-        success: false,
-        error: "Incorrect password. Please enter the team password (Nexora@2026).",
-      };
-    }
-
-    // Check if matching other predefined users
-    const matched = DEMO_USERS.find(
-      (u) => u.email.toLowerCase() === trimmedEmail
-    );
-
-    if (matched) {
-      loginAs(matched);
-      return { success: true };
-    }
-
-    // Custom user login
-    const namePart = trimmedEmail.split("@")[0].replace(/[._]/g, " ");
-    const formattedName = namePart
-      .split(" ")
-      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-      .join(" ");
-
-    const initials =
-      namePart
-        .split(" ")
-        .map((w) => w.charAt(0).toUpperCase())
-        .join("")
-        .slice(0, 2) || "NX";
-
-    const customUser: AuthUser = {
-      id: `u-${Date.now()}`,
-      name: formattedName || "Nexora Staffing Member",
-      email: trimmedEmail,
-      role: "Recruiter",
-      avatarInitials: initials,
-      authProvider: "credentials",
-    };
-
-    loginAs(customUser);
-    return { success: true };
   };
 
-  const logout = () => {
+  const logout = async () => {
+    try {
+      await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+    } catch {}
     setUser(null);
-    localStorage.removeItem(COOKIE_NAME);
-    clearAuthCookie();
     router.push("/login");
+    router.refresh();
   };
 
   const isAdmin = user?.role === "Owner / Admin";
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, isAdmin, login, loginWithGoogle, loginAs, logout }}>
+    <AuthContext.Provider value={{ user, isLoading, isAdmin, login, logout }}>
       {children}
     </AuthContext.Provider>
   );

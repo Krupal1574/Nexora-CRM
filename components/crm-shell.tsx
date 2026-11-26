@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { useAuth } from "@/lib/crm/auth-context";
+import { SecurityMonitor } from "@/components/security-monitor";
 
 const NAV_ITEMS = [
   { href: "/", icon: "▦", label: "Dashboard" },
@@ -38,6 +39,7 @@ export function CrmShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="app-shell">
+      <SecurityMonitor />
       <aside className={`sidebar ${sidebarOpen ? "open" : ""}`}>
         <Link href="/" className="sidebar-logo">
           <img
