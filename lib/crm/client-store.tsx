@@ -23,10 +23,8 @@ export interface CrmClient extends Client {
   updatedAt: string;
 }
 
-let clientCounter = 100;
 function genClientId(): string {
-  clientCounter += 1;
-  return `client-${clientCounter}`;
+  return `client_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 }
 
 const INITIAL_CLIENTS: CrmClient[] = SAMPLE_CLIENTS.map((c, idx) => ({

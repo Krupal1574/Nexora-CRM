@@ -36,16 +36,23 @@ export async function PATCH(
       "title",
       "email",
       "phone",
+      "linkedin",
       "stage",
       "temperature",
       "source",
       "owner",
+      "value",
       "visaStatus",
       "experience",
       "leadType",
+      "leadSource",
+      "leadPerson",
+      "salesPerson",
+      "accountRef",
       "technology",
       "remark",
       "location",
+      "date",
     ];
 
     const updates: string[] = [];

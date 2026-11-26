@@ -1,0 +1,40 @@
+import { NextRequest, NextResponse } from "next/server";
+import { executeBulkImport, type DuplicateStrategy } from "@/lib/crm/bulk-import";
+import { DEFAULT_DUPLICATE_OPTIONS, type DuplicateMatchOptions } from "@/lib/crm/duplicates";
+import type { NormalizedImportRow } from "@/lib/crm/import-utils";
+
+export const dynamic = "force-dynamic";
+
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json();
+    const rows: NormalizedImportRow[] = Array.isArray(body.rows) ? body.rows : [];
+    const duplicateMode: DuplicateStrategy = body.duplicateMode || "skip";
+    const matchOptions: DuplicateMatchOptions = body.matchOptions || DEFAULT_DUPLICATE_OPTIONS;
+
+    if (rows.length === 0) {
+      return NextResponse.json(
+        { success: false, error: "No valid lead rows provided for import." },
+        { status: 400 }
+      );
+    }
+
+    const summary = await executeBulkImport({
+      targetType: "leads",
+      rows,
+      duplicateMode,
+      matchOptions,
+      sourceName: body.sourceName || "Spreadsheet Import",
+      actor: body.actor || "Support Admin",
+      actionType: body.actionType || "Import",
+    });
+
+    return NextResponse.json({ success: true, summary }, { status: 201 });
+  } catch (err: any) {
+    console.error("POST /api/crm/leads/bulk error:", err);
+    return NextResponse.json(
+      { success: false, error: err?.message || "Bulk lead import failed." },
+      { status: 500 }
+    );
+  }
+}

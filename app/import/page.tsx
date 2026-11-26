@@ -1,872 +1,1396 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { CrmShell } from "@/components/crm-shell";
 import { useToast } from "@/lib/crm/toast-context";
-import { useLeadStore, type LeadStage, LEAD_STAGES } from "@/lib/crm/lead-store";
-import { useCandidateStore, type PipelineStage } from "@/lib/crm/candidate-store";
+import { useLeadStore } from "@/lib/crm/lead-store";
+import { useCandidateStore } from "@/lib/crm/candidate-store";
 import { useAuth } from "@/lib/crm/auth-context";
+import {
+  buildAutoColumnMapping,
+  detectImportFormat,
+  downloadWorkbookXlsx,
+  extractSpreadsheetParts,
+  normalizeMappedRows,
+  parseSpreadsheetBuffer,
+  TARGET_FIELD_OPTIONS,
+  type ImportFormat,
+  type NormalizedImportRow,
+  type ParsedSpreadsheet,
+  type TargetFieldKey,
+} from "@/lib/crm/import-utils";
+import {
+  analyzeImportDuplicates,
+  DEFAULT_DUPLICATE_OPTIONS,
+  type DedupeComparableRecord,
+  type DuplicateCluster,
+  type DuplicateMatchOptions,
+} from "@/lib/crm/duplicates";
+import type { BulkImportSummary, DuplicateStrategy } from "@/lib/crm/bulk-import";
 
-/* ═══════════════════════════════════════════════════════════════════════
-   RFC 4180 CSV Parser — handles quoted fields, multi-line values,
-   and auto-detects comma vs semicolon delimiter.
-   ═══════════════════════════════════════════════════════════════════════ */
+type ActiveTab = "import" | "gsheets" | "duplicates" | "export" | "history";
+type TargetEntity = "leads" | "candidates";
 
-function detectDelimiter(text: string): string {
-  // Check the first line (header) for semicolons vs commas
-  const firstLine = text.split(/\r?\n/)[0] || "";
-  const semicolons = (firstLine.match(/;/g) || []).length;
-  const commas = (firstLine.match(/,/g) || []).length;
-  return semicolons > commas ? ";" : ",";
+interface SheetSourceRecord {
+  id: string;
+  name: string;
+  sheetUrl: string;
+  spreadsheetId: string;
+  gid: string;
+  sheetName: string;
+  targetType: TargetEntity;
+  duplicateMode: DuplicateStrategy;
+  lastSyncedAt?: string | null;
+  lastSyncCount?: number | null;
+  lastSyncStatus?: string | null;
+  lastSyncSummary?: string | null;
 }
 
-function parseCSV(text: string, delimiter?: string): string[][] {
-  const delim = delimiter || detectDelimiter(text);
-  const rows: string[][] = [];
-  let row: string[] = [];
-  let field = "";
-  let inQuotes = false;
-  let i = 0;
+interface ImportLogRecord {
+  id: string;
+  actionType: string;
+  targetType: string;
+  sourceName: string;
+  addedCount: number;
+  updatedCount: number;
+  skippedCount: number;
+  actor: string;
+  details: string;
+  createdAt: string;
+}
 
-  while (i < text.length) {
-    const ch = text[i];
+interface GoogleSheetPreview {
+  spreadsheetId: string;
+  gid: string;
+  sheetTitle: string;
+  availableTabs: string[];
+  detectedFormat: ImportFormat;
+  headers: string[];
+  dataRowCount: number;
+  normalizedRows: NormalizedImportRow[];
+  duplicateSummary: {
+    total: number;
+    newCount: number;
+    dbDuplicateCount: number;
+    fileDuplicateCount: number;
+    previewItems: Array<{
+      row: NormalizedImportRow;
+      index: number;
+      status: "new" | "db_duplicate" | "file_duplicate";
+      matchedExistingName?: string;
+      matchedFileRowIndex?: number;
+      matchReasons: string[];
+    }>;
+  };
+}
 
-    if (inQuotes) {
-      if (ch === '"') {
-        // Check for escaped quote ""
-        if (i + 1 < text.length && text[i + 1] === '"') {
-          field += '"';
-          i += 2;
-        } else {
-          // End of quoted field
-          inQuotes = false;
-          i++;
-        }
-      } else {
-        field += ch;
-        i++;
-      }
-    } else {
-      if (ch === '"') {
-        inQuotes = true;
-        i++;
-      } else if (ch === delim) {
-        row.push(field.trim());
-        field = "";
-        i++;
-      } else if (ch === "\r") {
-        // Skip \r, handle \n next
-        i++;
-      } else if (ch === "\n") {
-        row.push(field.trim());
-        field = "";
-        if (row.some((c) => c.length > 0)) {
-          rows.push(row);
-        }
-        row = [];
-        i++;
-      } else {
-        field += ch;
-        i++;
-      }
-    }
+function escapeCsvCell(val: unknown): string {
+  const s = String(val ?? "");
+  if (s.includes(",") || s.includes('"') || s.includes("\n")) {
+    return `"${s.replace(/"/g, '""')}"`;
   }
-
-  // Last field/row
-  row.push(field.trim());
-  if (row.some((c) => c.length > 0)) {
-    rows.push(row);
-  }
-
-  return rows;
-}
-
-/* ═══════════════════════════════════════════════════════════════════════
-   Bitrix24 ↔ Nexora column mapping
-   ═══════════════════════════════════════════════════════════════════════ */
-
-type ImportFormat = "nexora" | "bitrix24" | "unknown";
-
-/** Map from lowercase Bitrix24 header → Nexora internal key */
-const BITRIX_TO_NEXORA: Record<string, string> = {
-  "lead name": "name",
-  "first name": "firstName",
-  "last name": "lastName",
-  stage: "stage",
-  mobile: "phone",
-  "work phone": "phone_alt",
-  "work e-mail": "email",
-  "home e-mail": "email_alt",
-  linkedin: "linkedin",
-  visa: "visaStatus",
-  "job role": "technology",
-  "total experience": "experience",
-  source: "leadSource",
-  responsible: "salesPerson",
-  "lead generator": "leadPerson",
-  "lead create by": "leadPerson_alt",
-  created: "date",
-  "company name": "company",
-  position: "position",
-  comment: "remark",
-  id: "bitrixId",
-  "created by": "createdBy",
-  city: "city",
-  country: "country",
-  "source information": "sourceInfo",
-};
-
-/** Nexora staffing sheet headers (lowercase) → Nexora internal key */
-const NEXORA_HEADERS: Record<string, string> = {
-  date: "date",
-  location: "location",
-  name: "name",
-  number: "phone",
-  "e-mail": "email",
-  "linkedin/ facebook": "linkedin",
-  "visa status": "visaStatus",
-  experience: "experience",
-  "lead type": "leadType",
-  "lead source": "leadSource",
-  "lead person": "leadPerson",
-  "sales person": "salesPerson",
-  technology: "technology",
-  "account ref": "accountRef",
-  remark: "remark",
-  stage: "stage",
-  "lead stage": "stage",
-  "full name": "name",
-  candidate: "name",
-  phone: "phone",
-  email: "email",
-  linkedin: "linkedin",
-  visa: "visaStatus",
-  role: "technology",
-  source: "leadSource",
-};
-
-function detectFormat(headers: string[]): ImportFormat {
-  const lowerHeaders = headers.map((h) => h.toLowerCase());
-  // Bitrix24 signature: has "lead name", "responsible", Bitrix-specific columns
-  const bitrixSignals = ["lead name", "responsible", "work e-mail", "lead generator", "work phone"].filter((s) =>
-    lowerHeaders.includes(s)
-  );
-  if (bitrixSignals.length >= 2) return "bitrix24";
-
-  // Nexora signature: has "name" or "full name", plus staffing fields
-  const nexoraSignals = ["name", "full name", "technology", "visa status", "lead person", "sales person"].filter((s) =>
-    lowerHeaders.includes(s)
-  );
-  if (nexoraSignals.length >= 2) return "nexora";
-
-  return "unknown";
-}
-
-/** Convert Bitrix24 date "DD.MM.YYYY HH:MM:SS" → "YYYY-MM-DD" */
-function parseBitrixDate(raw: string): string {
-  if (!raw) return new Date().toISOString().split("T")[0];
-  const match = raw.match(/^(\d{2})\.(\d{2})\.(\d{4})/);
-  if (match) return `${match[3]}-${match[2]}-${match[1]}`;
-  // Try ISO format
-  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10);
-  return new Date().toISOString().split("T")[0];
-}
-
-/** Case-insensitive match to LeadStage, handling Bitrix24 ALL-CAPS */
-function matchLeadStage(raw: string): LeadStage {
-  if (!raw) return "New Lead";
-  const cleaned = raw.trim();
-  // Exact match first
-  const exact = LEAD_STAGES.find((s) => s === cleaned);
-  if (exact) return exact;
-  // Case-insensitive
-  const lower = cleaned.toLowerCase();
-  const matched = LEAD_STAGES.find((s) => s.toLowerCase() === lower);
-  if (matched) return matched;
-  // Fuzzy: "chat lead" → "Chat Lead", "follow up" → "Follow Up"
-  return "New Lead";
-}
-
-/* ═══════════════════════════════════════════════════════════════════════
-   Normalize parsed rows into a unified internal record format
-   ═══════════════════════════════════════════════════════════════════════ */
-
-function normalizeRows(
-  headers: string[],
-  dataRows: string[][],
-  format: ImportFormat
-): Record<string, string>[] {
-  const mapping = format === "bitrix24" ? BITRIX_TO_NEXORA : NEXORA_HEADERS;
-  const lowerHeaders = headers.map((h) => h.toLowerCase());
-
-  return dataRows
-    .map((cells) => {
-      const raw: Record<string, string> = {};
-      lowerHeaders.forEach((h, idx) => {
-        const key = mapping[h];
-        if (key && cells[idx]) {
-          // Don't overwrite if already set (prefer primary over _alt)
-          if (!raw[key] || !raw[key].trim()) {
-            raw[key] = cells[idx];
-          }
-        }
-        // Also store raw header for debugging
-        raw[`_raw_${h}`] = cells[idx] || "";
-      });
-
-      // Bitrix24-specific: construct name from firstName/lastName if no "Lead Name"
-      if (!raw["name"] && (raw["firstName"] || raw["lastName"])) {
-        raw["name"] = [raw["firstName"], raw["lastName"]].filter(Boolean).join(" ");
-      }
-
-      // Fallback phone from alt
-      if (!raw["phone"] && raw["phone_alt"]) raw["phone"] = raw["phone_alt"];
-      // Fallback email from alt
-      if (!raw["email"] && raw["email_alt"]) raw["email"] = raw["email_alt"];
-      // Fallback leadPerson from alt
-      if (!raw["leadPerson"] && raw["leadPerson_alt"]) raw["leadPerson"] = raw["leadPerson_alt"];
-
-      // Normalize date for Bitrix24 format
-      if (format === "bitrix24" && raw["date"]) {
-        raw["date"] = parseBitrixDate(raw["date"]);
-      }
-
-      // Normalize stage
-      if (raw["stage"]) {
-        raw["stage"] = matchLeadStage(raw["stage"]);
-      }
-
-      return raw;
-    })
-    .filter((r) => r["name"] && r["name"].trim().length > 0);
-}
-
-/* ═══════════════════════════════════════════════════════════════════════
-   Component
-   ═══════════════════════════════════════════════════════════════════════ */
-
-interface ImportHistoryEntry {
-  type: "Import" | "Export";
-  target: "Leads" | "Candidates";
-  file: string;
-  result: string;
-  by: string;
-  when: string;
+  return s;
 }
 
 export default function ImportExportPage() {
-  const [tab, setTab] = useState<"import" | "export" | "history">("import");
-  const [targetType, setTargetType] = useState<"leads" | "candidates">("leads");
-  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
-  const [fileName, setFileName] = useState("");
-  const [parsedRows, setParsedRows] = useState<Record<string, string>[]>([]);
-  const [detectedFormat, setDetectedFormat] = useState<ImportFormat>("unknown");
-  const [history, setHistory] = useState<ImportHistoryEntry[]>([
-    { type: "Import", target: "Leads", file: "nexora_sourced_leads.csv", result: "6 added", by: "Yatri", when: "Today" },
-    { type: "Export", target: "Leads", file: "nexora-leads.csv", result: "6 rows", by: "Krupal P.", when: "Today" },
-    { type: "Import", target: "Candidates", file: "bitrix24_candidates_march.csv", result: "6 added", by: "Krupal P.", when: "Yesterday" },
-  ]);
-
-  const { leads, createLead } = useLeadStore();
-  const { candidates, createCandidate } = useCandidateStore();
   const { show } = useToast();
-  const { isAdmin } = useAuth();
+  const { user } = useAuth();
+  const { leads, bulkImportLeads, refreshLeads, dbConnected } = useLeadStore();
+  const { candidates, bulkImportCandidates, refreshCandidates } = useCandidateStore();
 
-  const handleDownloadLeadTemplate = () => {
-    const csvContent =
-      "data:text/csv;charset=utf-8," +
-      "Date,Location,Name,Number,E-mail,Linkedin/ Facebook,Visa Status,Experience,Lead Type,Lead Source,Lead Person,Sales Person,Technology,Account Ref,Remark\n" +
-      "2026-10-05,USA,Krishna Reddy,9403681567,reddyyeddula564@gmail.com,https://www.linkedin.com/in/Krishna Reddy,H1B,5+ yrs,Cold Lead,Linkedin Resume,Yatri,Krupal P.,Computer science,Tech Mandate USA,Resume sourced via LinkedIn\n" +
-      "2026-10-06,USA,Aarav Mehta,+1 408 555 0192,aarav.mehta@brightline.tech,https://www.linkedin.com/in/aarav-mehta,OPT,4 yrs,Warm Lead,Referral,Yatri,Priya S.,Full Stack React,Brightline Tech,Interested in hybrid roles";
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", "nexora-leads-import-template.csv");
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    show("Staffing Leads template downloaded.");
-  };
+  const actor = user?.name || "Support Admin";
 
-  const handleDownloadCandidateTemplate = () => {
-    const csvContent =
-      "data:text/csv;charset=utf-8," +
-      "Full name,Role,Location,Stage,Experience,Email,Phone,Profile URL,Source\n" +
-      "Jane Doe,Senior Data Engineer,Remote,New,5 yrs,jane.doe@example.com,+91 90000 00000,https://www.linkedin.com/in/jane-doe,Referral";
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", "nexora-candidate-template.csv");
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    show("Candidates template downloaded.");
-  };
+  const [activeTab, setActiveTab] = useState<ActiveTab>("import");
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  /* ── Tab 1: File Import (Excel / CSV) ── */
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [dragActive, setDragActive] = useState(false);
+  const [fileName, setFileName] = useState("");
+  const [fileBuffer, setFileBuffer] = useState<ArrayBuffer | null>(null);
+  const [isBinaryExcel, setIsBinaryExcel] = useState(false);
+  const [parsedSheet, setParsedSheet] = useState<ParsedSpreadsheet | null>(null);
+  const [detectedFormat, setDetectedFormat] = useState<ImportFormat>("generic");
+  const [columnMap, setColumnMap] = useState<Record<number, TargetFieldKey>>({});
+  const [targetType, setTargetType] = useState<TargetEntity>("leads");
+  const [duplicateMode, setDuplicateMode] = useState<DuplicateStrategy>("skip");
+  const [matchOptions, setMatchOptions] = useState<DuplicateMatchOptions>(DEFAULT_DUPLICATE_OPTIONS);
+  const [importing, setImporting] = useState(false);
+  const [importSummary, setImportSummary] = useState<BulkImportSummary | null>(null);
 
-    if (file.size > 10 * 1024 * 1024) {
-      show("File size must be under 10 MB.");
-      return;
-    }
+  /* ── Tab 2: Google Sheets Sync ── */
+  const [sheetUrl, setSheetUrl] = useState("");
+  const [sheetTabName, setSheetTabName] = useState("");
+  const [sheetAlias, setSheetAlias] = useState("");
+  const [sheetTarget, setSheetTarget] = useState<TargetEntity>("leads");
+  const [sheetDupMode, setSheetDupMode] = useState<DuplicateStrategy>("skip");
+  const [sheetLoading, setSheetLoading] = useState(false);
+  const [sheetPreview, setSheetPreview] = useState<GoogleSheetPreview | null>(null);
+  const [savedSheets, setSavedSheets] = useState<SheetSourceRecord[]>([]);
+  const [syncingSheetId, setSyncingSheetId] = useState<string | null>(null);
 
-    setFileName(file.name);
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const text = event.target?.result as string;
+  /* ── Tab 3: Duplicate Finder & Merger ── */
+  const [dupTarget, setDupTarget] = useState<TargetEntity>("leads");
+  const [dupOptions, setDupOptions] = useState<DuplicateMatchOptions>(DEFAULT_DUPLICATE_OPTIONS);
+  const [dupScanning, setDupScanning] = useState(false);
+  const [dupTotalRecords, setDupTotalRecords] = useState(0);
+  const [dupClusters, setDupClusters] = useState<DuplicateCluster[]>([]);
+  const [dupActionBusy, setDupActionBusy] = useState<string | null>(null);
 
-        // Parse with proper RFC 4180 parser (auto-detects delimiter)
-        const allRows = parseCSV(text);
-        if (allRows.length < 2) {
-          show("File must include at least a header row and one data row.");
-          return;
-        }
+  /* ── Tab 5: History ── */
+  const [historyLogs, setHistoryLogs] = useState<ImportLogRecord[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
-        const headers = allRows[0];
-        const dataRows = allRows.slice(1);
-
-        // Detect format
-        const format = detectFormat(headers);
-        setDetectedFormat(format);
-
-        // Auto-select leads for Bitrix24 since it's always leads
-        if (format === "bitrix24") {
-          setTargetType("leads");
-        }
-
-        // Normalize all rows using the detected mapping
-        const normalized = normalizeRows(headers, dataRows, format);
-
-        setParsedRows(normalized);
-        setStep(2);
-        show(`Parsed ${normalized.length} records from ${file.name} (${format === "bitrix24" ? "Bitrix24" : format === "nexora" ? "Nexora" : "Generic"} format detected)`);
-      } catch {
-        show("Failed to parse CSV file. Check the format and try again.");
+  const loadSavedSheets = useCallback(async () => {
+    try {
+      const res = await fetch("/api/crm/google-sheets");
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setSavedSheets(data.sources || []);
       }
-    };
-    reader.readAsText(file);
+    } catch (e) {
+      console.error("Failed to fetch saved Google Sheets:", e);
+    }
+  }, []);
+
+  const loadHistoryLogs = useCallback(async () => {
+    setHistoryLoading(true);
+    try {
+      const res = await fetch("/api/crm/import-logs");
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setHistoryLogs(data.logs || []);
+      }
+    } catch (e) {
+      console.error("Failed to load import logs:", e);
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, []);
+
+  const scanDuplicates = useCallback(
+    async (target: TargetEntity = dupTarget, opts: DuplicateMatchOptions = dupOptions) => {
+      setDupScanning(true);
+      try {
+        const params = new URLSearchParams({
+          target,
+          email: String(opts.matchByEmail),
+          phone: String(opts.matchByPhone),
+          linkedin: String(opts.matchByLinkedin),
+          name: String(opts.matchByName),
+          ignorePlaceholders: String(opts.ignorePlaceholders ?? true),
+        });
+        const res = await fetch(`/api/crm/leads/duplicates?${params.toString()}`);
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.error || "Scan failed");
+        setDupTotalRecords(data.totalRecords || 0);
+        setDupClusters(data.clusters || []);
+      } catch (err: any) {
+        show(err?.message || "Failed to scan duplicates");
+      } finally {
+        setDupScanning(false);
+      }
+    },
+    [dupTarget, dupOptions, show]
+  );
+
+  useEffect(() => {
+    if (activeTab === "gsheets") loadSavedSheets();
+    if (activeTab === "history") loadHistoryLogs();
+    if (activeTab === "duplicates" && dupClusters.length === 0 && !dupScanning) {
+      scanDuplicates();
+    }
+  }, [activeTab, loadSavedSheets, loadHistoryLogs, scanDuplicates, dupClusters.length, dupScanning]);
+
+  /* ── File Parsing Helpers ── */
+  const applyParsedSheet = (parsed: ParsedSpreadsheet) => {
+    const fmt = detectImportFormat(parsed.headers);
+    const autoMap = buildAutoColumnMapping(parsed.headers, fmt);
+    setParsedSheet(parsed);
+    setDetectedFormat(fmt);
+    setColumnMap(autoMap);
+    setImportSummary(null);
   };
 
-  const executeImport = () => {
-    let addedCount = 0;
+  const handleFile = async (file: File) => {
+    const lower = file.name.toLowerCase();
+    const isExcel = /\.(xlsx|xls|xlsm|xlsb|ods)$/i.test(lower);
+    const isCsv = /\.(csv|tsv|txt)$/i.test(lower);
 
+    if (!isExcel && !isCsv) {
+      show("Please upload an Excel (.xlsx, .xls) or CSV (.csv) file.");
+      return;
+    }
+
+    try {
+      setFileName(file.name);
+      setIsBinaryExcel(isExcel);
+
+      if (isExcel) {
+        const buf = await file.arrayBuffer();
+        setFileBuffer(buf);
+        const parsed = parseSpreadsheetBuffer(buf);
+        applyParsedSheet(parsed);
+        show(`Loaded ${parsed.dataRows.length} rows from "${parsed.activeSheet}" (${file.name})`);
+      } else {
+        setFileBuffer(null);
+        const text = await file.text();
+        const parsed = extractSpreadsheetParts(text);
+        applyParsedSheet(parsed);
+        show(`Loaded ${parsed.dataRows.length} rows from ${file.name}`);
+      }
+    } catch (err: any) {
+      show(err?.message || "Could not parse spreadsheet file.");
+    }
+  };
+
+  const handleSheetTabSwitch = (newSheet: string) => {
+    if (!fileBuffer || !isBinaryExcel) return;
+    try {
+      const parsed = parseSpreadsheetBuffer(fileBuffer, newSheet);
+      applyParsedSheet(parsed);
+    } catch (err: any) {
+      show(err?.message || `Could not read sheet "${newSheet}"`);
+    }
+  };
+
+  const normalizedRows: NormalizedImportRow[] = useMemo(() => {
+    if (!parsedSheet) return [];
+    return normalizeMappedRows(parsedSheet.dataRows, columnMap, fileName || "Spreadsheet Import");
+  }, [parsedSheet, columnMap, fileName]);
+
+  const existingRecordsForDedupe: DedupeComparableRecord[] = useMemo(() => {
     if (targetType === "leads") {
-      parsedRows.forEach((r) => {
-        const name = r["name"] || "Imported Lead";
-        const date = r["date"] || new Date().toISOString().split("T")[0];
-        const location = r["location"] || r["city"] || r["country"] || "USA";
-        const phone = r["phone"] || "";
-        const email = r["email"] || "";
-        const linkedin = r["linkedin"] || "";
-        const visaStatus = r["visaStatus"] || "";
-        const experience = r["experience"] || "";
-        const leadType = r["leadType"] || "Cold Lead";
-        const leadSource = r["leadSource"] || "CSV Import";
-        const leadPerson = r["leadPerson"] || "Yatri";
-        const salesPerson = r["salesPerson"] || "Krupal P.";
-        const technology = r["technology"] || r["position"] || "";
-        const accountRef = r["accountRef"] || r["company"] || "";
-        const remark = r["remark"] || "";
-        const stage: LeadStage = matchLeadStage(r["stage"] || "");
+      return leads.map((l) => ({
+        id: l.id,
+        name: l.name,
+        email: l.email,
+        phone: l.phone,
+        linkedin: l.linkedin,
+      }));
+    }
+    return candidates.map((c) => ({
+      id: c.id,
+      name: c.name,
+      email: c.email,
+      phone: c.phone,
+      profileUrl: c.profileUrl,
+    }));
+  }, [targetType, leads, candidates]);
 
-        createLead({
-          name,
-          date,
-          location,
-          phone,
-          email,
-          linkedin,
-          visaStatus,
-          experience,
-          leadType,
-          leadSource,
-          leadPerson,
-          salesPerson,
-          technology,
-          accountRef,
-          remark,
-          company: accountRef || technology || "Independent Candidate",
-          owner: salesPerson,
-          stage,
-        });
-        addedCount++;
+  const duplicateAnalysis = useMemo(() => {
+    if (normalizedRows.length === 0) return null;
+    return analyzeImportDuplicates(normalizedRows, existingRecordsForDedupe, matchOptions);
+  }, [normalizedRows, existingRecordsForDedupe, matchOptions]);
+
+  const handleExecuteImport = async () => {
+    if (normalizedRows.length === 0) {
+      show("No valid rows mapped (make sure Name / First Name is mapped).");
+      return;
+    }
+    setImporting(true);
+    try {
+      const summary =
+        targetType === "leads"
+          ? await bulkImportLeads({
+              rows: normalizedRows,
+              duplicateMode,
+              matchOptions,
+              sourceName: fileName || "Spreadsheet Import",
+              actor,
+            })
+          : await bulkImportCandidates({
+              rows: normalizedRows,
+              duplicateMode,
+              matchOptions,
+              sourceName: fileName || "Spreadsheet Import",
+              actor,
+            });
+      setImportSummary(summary);
+      show(
+        `Import complete: +${summary.addedCount} added, ${summary.updatedCount} updated, ${summary.skippedCount} skipped`
+      );
+      loadHistoryLogs();
+    } catch (err: any) {
+      show(err?.message || "Import failed.");
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  /* ── Google Sheets Handlers ── */
+  const handlePreviewGoogleSheet = async (tabOverride?: string) => {
+    if (!sheetUrl.trim()) {
+      show("Please paste a Google Sheet URL.");
+      return;
+    }
+    setSheetLoading(true);
+    try {
+      const res = await fetch("/api/crm/google-sheets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "preview",
+          sheetUrl: sheetUrl.trim(),
+          sheetName: tabOverride ?? sheetTabName.trim(),
+          name: sheetAlias.trim(),
+          targetType: sheetTarget,
+          matchOptions,
+        }),
       });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || "Preview failed");
+      setSheetPreview(data);
+      if (tabOverride !== undefined) setSheetTabName(tabOverride);
+      show(`Fetched ${data.dataRowCount} rows from "${data.sheetTitle}"`);
+    } catch (err: any) {
+      show(err?.message || "Failed to fetch Google Sheet.");
+    } finally {
+      setSheetLoading(false);
+    }
+  };
+
+  const handleSyncGoogleSheet = async (opts?: { sourceId?: string }) => {
+    if (!opts?.sourceId && !sheetUrl.trim()) {
+      show("Please paste a Google Sheet URL.");
+      return;
+    }
+    if (opts?.sourceId) setSyncingSheetId(opts.sourceId);
+    else setSheetLoading(true);
+
+    try {
+      const res = await fetch("/api/crm/google-sheets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(
+          opts?.sourceId
+            ? { action: "sync", sourceId: opts.sourceId, matchOptions, actor }
+            : {
+                action: "sync",
+                sheetUrl: sheetUrl.trim(),
+                sheetName: sheetTabName.trim(),
+                name: sheetAlias.trim(),
+                targetType: sheetTarget,
+                duplicateMode: sheetDupMode,
+                matchOptions,
+                actor,
+              }
+        ),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || "Sync failed");
+      const s = data.summary as BulkImportSummary;
+      show(
+        `Synced: +${s.addedCount} added, ${s.updatedCount} updated, ${s.skippedCount} skipped`
+      );
+      await Promise.all([refreshLeads(), refreshCandidates(), loadSavedSheets(), loadHistoryLogs()]);
+      if (!opts?.sourceId) {
+        setSheetPreview(null);
+      }
+    } catch (err: any) {
+      show(err?.message || "Google Sheet sync failed.");
+    } finally {
+      setSheetLoading(false);
+      setSyncingSheetId(null);
+    }
+  };
+
+  const handleSaveSheetConnection = async () => {
+    if (!sheetUrl.trim()) {
+      show("Please enter a Google Sheet URL first.");
+      return;
+    }
+    setSheetLoading(true);
+    try {
+      const res = await fetch("/api/crm/google-sheets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "save",
+          sheetUrl: sheetUrl.trim(),
+          sheetName: sheetTabName.trim(),
+          name: sheetAlias.trim(),
+          targetType: sheetTarget,
+          duplicateMode: sheetDupMode,
+          actor,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || "Could not save sheet");
+      show("Saved Google Sheet connection.");
+      loadSavedSheets();
+    } catch (err: any) {
+      show(err?.message || "Failed to save connection.");
+    } finally {
+      setSheetLoading(false);
+    }
+  };
+
+  const handleDeleteSavedSheet = async (id: string) => {
+    try {
+      const res = await fetch(`/api/crm/google-sheets?id=${encodeURIComponent(id)}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || "Delete failed");
+      setSavedSheets((prev) => prev.filter((s) => s.id !== id));
+      show("Removed Google Sheet connection.");
+    } catch (err: any) {
+      show(err?.message || "Failed to remove connection.");
+    }
+  };
+
+  /* ── Duplicate Cluster Actions ── */
+  const handleMergeCluster = async (cluster: DuplicateCluster) => {
+    setDupActionBusy(cluster.clusterId);
+    try {
+      const res = await fetch("/api/crm/leads/duplicates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "merge",
+          target: dupTarget,
+          primaryId: cluster.primary.id,
+          duplicateIds: cluster.duplicates.map((d) => d.id),
+          actor,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || "Merge failed");
+      show(`Merged ${cluster.duplicates.length} duplicate(s) into "${cluster.primary.name}"`);
+      setDupClusters((prev) => prev.filter((c) => c.clusterId !== cluster.clusterId));
+      await (dupTarget === "leads" ? refreshLeads() : refreshCandidates());
+    } catch (err: any) {
+      show(err?.message || "Merge failed.");
+    } finally {
+      setDupActionBusy(null);
+    }
+  };
+
+  const handleDeleteClusterDuplicates = async (cluster: DuplicateCluster) => {
+    setDupActionBusy(cluster.clusterId);
+    try {
+      const res = await fetch("/api/crm/leads/duplicates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "delete",
+          target: dupTarget,
+          duplicateIds: cluster.duplicates.map((d) => d.id),
+          actor,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || "Delete failed");
+      show(`Deleted ${data.deletedCount} duplicate record(s)`);
+      setDupClusters((prev) => prev.filter((c) => c.clusterId !== cluster.clusterId));
+      await (dupTarget === "leads" ? refreshLeads() : refreshCandidates());
+    } catch (err: any) {
+      show(err?.message || "Delete failed.");
+    } finally {
+      setDupActionBusy(null);
+    }
+  };
+
+  const handleAutoMergeHighConfidence = async () => {
+    setDupActionBusy("auto_merge");
+    try {
+      const res = await fetch("/api/crm/leads/duplicates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "auto_merge",
+          target: dupTarget,
+          matchOptions: { ...dupOptions, matchByName: false },
+          actor,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || "Auto-merge failed");
+      show(
+        `Auto-merged ${data.mergedClusters} groups (${data.deletedCount} duplicates removed)`
+      );
+      await Promise.all([
+        scanDuplicates(dupTarget, dupOptions),
+        dupTarget === "leads" ? refreshLeads() : refreshCandidates(),
+      ]);
+    } catch (err: any) {
+      show(err?.message || "Auto-merge failed.");
+    } finally {
+      setDupActionBusy(null);
+    }
+  };
+
+  /* ── Export Handlers ── */
+  const handleExport = async (entity: TargetEntity, format: "xlsx" | "csv") => {
+    const dateStr = new Date().toISOString().split("T")[0];
+    const filename = `nexora-${entity}-${dateStr}.${format}`;
+
+    const rows: Record<string, string | number>[] =
+      entity === "leads"
+        ? leads.map((l) => ({
+            Name: l.name || "",
+            Date: l.date || "",
+            Location: l.location || "",
+            Phone: l.phone || "",
+            Email: l.email || "",
+            LinkedIn: l.linkedin || "",
+            "Visa Status": l.visaStatus || "",
+            Experience: l.experience || "",
+            "Lead Type": l.leadType || "",
+            "Lead Source": l.leadSource || "",
+            "Lead Person": l.leadPerson || "",
+            "Sales Person": l.salesPerson || "",
+            Technology: l.technology || "",
+            "Account Ref": l.accountRef || "",
+            Stage: l.stage || "",
+            Remark: l.remark || "",
+          }))
+        : candidates.map((c) => ({
+            Name: c.name || "",
+            Role: c.role || "",
+            Email: c.email || "",
+            Phone: c.phone || "",
+            Location: c.location || "",
+            Experience: c.experience || "",
+            Stage: c.stage || "",
+            Source: c.source || "",
+            LinkedIn: c.profileUrl || "",
+            Skills: c.skills.join("; "),
+          }));
+
+    if (rows.length === 0) {
+      show(`No ${entity} available to export.`);
+      return;
+    }
+
+    if (format === "xlsx") {
+      downloadWorkbookXlsx(filename, entity === "leads" ? "Leads" : "Candidates", rows);
     } else {
-      parsedRows.forEach((r) => {
-        const name = r["name"] || "Imported Candidate";
-        const role = r["technology"] || r["position"] || "Staffing Candidate";
-        const location = r["location"] || r["city"] || "Remote";
-        const stage = (r["stage"] || "New") as PipelineStage;
-        const experience = r["experience"] || "3 yrs";
-        const email = r["email"] || "";
-        const phone = r["phone"] || "";
-        const source = r["leadSource"] || "CSV Import";
-
-        createCandidate({
-          name,
-          role,
-          location,
-          stage,
-          experience,
-          email,
-          phone,
-          source,
-        });
-        addedCount++;
-      });
+      const headers = Object.keys(rows[0]);
+      const csvLines = [
+        headers.map(escapeCsvCell).join(","),
+        ...rows.map((r) => headers.map((h) => escapeCsvCell((r as Record<string, unknown>)[h])).join(",")),
+      ];
+      const blob = new Blob([csvLines.join("\n")], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
     }
 
-    setHistory((prev) => [
-      {
-        type: "Import",
-        target: targetType === "leads" ? "Leads" : "Candidates",
-        file: fileName || "manual-upload.csv",
-        result: `${addedCount} added`,
-        by: "Krupal P.",
-        when: "Just now",
-      },
-      ...prev,
-    ]);
+    show(`Exported ${rows.length} ${entity} to ${filename}`);
 
-    setStep(4);
-    show(`Successfully imported ${addedCount} ${targetType} into CRM.`);
+    fetch("/api/crm/import-logs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        actionType: "Export",
+        targetType: entity === "leads" ? "Leads" : "Candidates",
+        sourceName: filename,
+        addedCount: rows.length,
+        actor,
+        details: `Exported ${rows.length} ${entity} as ${format.toUpperCase()}`,
+      }),
+    }).catch(() => {});
   };
 
-  const handleExportLeadsCsv = () => {
-    if (!isAdmin) {
-      show("Export is restricted to Administrators only.");
-      return;
-    }
-    const headers = [
-      "Date",
-      "Location",
-      "Name",
-      "Number",
-      "E-mail",
-      "Linkedin/ Facebook",
-      "Visa Status",
-      "Experience",
-      "Lead Type",
-      "Lead Source",
-      "Lead Person",
-      "Sales Person",
-      "Technology",
-      "Account Ref",
-      "Remark",
-    ].join(",");
-
-    const rows = leads
-      .map((l) =>
-        [
-          `"${l.date || l.createdAt.split("T")[0]}"`,
-          `"${l.location || ""}"`,
-          `"${l.name}"`,
-          `"${l.phone || ""}"`,
-          `"${l.email || ""}"`,
-          `"${l.linkedin || l.profileUrls?.[0] || ""}"`,
-          `"${l.visaStatus || ""}"`,
-          `"${l.experience || ""}"`,
-          `"${l.leadType || (l.temperature === "Hot" ? "Hot Lead" : l.temperature === "Warm" ? "Warm Lead" : "Cold Lead")}"`,
-          `"${l.leadSource || l.source || ""}"`,
-          `"${l.leadPerson || "Yatri"}"`,
-          `"${l.salesPerson || l.owner || ""}"`,
-          `"${l.technology || l.company || ""}"`,
-          `"${l.accountRef || ""}"`,
-          `"${l.remark || l.notes?.[0]?.text || ""}"`,
-        ].join(",")
-      )
-      .join("\n");
-
-    const blob = new Blob([headers + "\n" + rows], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", `nexora-leads-${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-
-    setHistory((prev) => [
-      {
-        type: "Export",
-        target: "Leads",
-        file: `nexora-leads-${new Date().toISOString().slice(0, 10)}.csv`,
-        result: `${leads.length} rows`,
-        by: "Krupal P.",
-        when: "Just now",
-      },
-      ...prev,
-    ]);
-
-    show(`Exported ${leads.length} leads in exact staffing format.`);
-  };
-
-  const handleExportCandidatesCsv = () => {
-    if (!isAdmin) {
-      show("Export is restricted to Administrators only.");
-      return;
-    }
-    const headers = "Name,Role,Location,Stage,Experience,Email,Phone,Skills\n";
-    const rows = candidates
-      .map(
-        (c) =>
-          `"${c.name}","${c.role}","${c.location}","${c.stage}","${c.experience}","${c.email}","${c.phone}","${(c.skills || []).join("; ")}"`
-      )
-      .join("\n");
-    const blob = new Blob([headers + rows], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", `nexora-candidates-${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-
-    setHistory((prev) => [
-      {
-        type: "Export",
-        target: "Candidates",
-        file: `nexora-candidates-${new Date().toISOString().slice(0, 10)}.csv`,
-        result: `${candidates.length} rows`,
-        by: "Krupal P.",
-        when: "Just now",
-      },
-      ...prev,
-    ]);
-
-    show(`Exported ${candidates.length} candidates.`);
-  };
-
-  const formatLabel =
-    detectedFormat === "bitrix24"
-      ? "🔄 Bitrix24 CRM Export"
-      : detectedFormat === "nexora"
-        ? "📋 Nexora Staffing Sheet"
-        : "📄 Generic CSV";
-
-  /* ── Stage distribution summary for review step ── */
-  const stageCounts: Record<string, number> = {};
-  parsedRows.forEach((r) => {
-    const s = r["stage"] || "New Lead";
-    stageCounts[s] = (stageCounts[s] || 0) + 1;
-  });
+  const totalExtraDuplicates = dupClusters.reduce((sum, c) => sum + c.duplicates.length, 0);
 
   return (
     <CrmShell>
       <div className="page-top">
         <div>
-          <h1>Import / Export Sourced Data</h1>
+          <h1>Data Hub — Import, Deduplicate &amp; Sync</h1>
           <p className="page-sub">
-            Move candidate and lead records in and out with CSV sheets — supports Nexora Staffing format, Bitrix24 exports, and generic CSVs.
+            Import Excel (.xlsx/.xls) or CSV spreadsheets, connect Google Sheets directly, and clean duplicate records in PostgreSQL.
           </p>
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <button className="btn ghost" onClick={handleDownloadLeadTemplate}>
-            ⬇ Leads Template (Staffing)
-          </button>
-          <button className="btn ghost" onClick={handleDownloadCandidateTemplate}>
-            ⬇ Candidates Template
-          </button>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <span className={`pill ${dbConnected ? "ok" : "bad"}`}>
+            {dbConnected ? "PostgreSQL Connected" : "Local Fallback"}
+          </span>
+          <Link href="/leads" className="btn ghost">
+            View Leads ({leads.length})
+          </Link>
         </div>
       </div>
 
-      <div className="tabs">
-        <button className={`tab-btn ${tab === "import" ? "active" : ""}`} onClick={() => setTab("import")}>
-          Import
-        </button>
-        {isAdmin && (
-          <button className={`tab-btn ${tab === "export" ? "active" : ""}`} onClick={() => setTab("export")}>
-            Export
+      {/* Navigation Tabs */}
+      <div className="tools" style={{ marginBottom: 18 }}>
+        {[
+          { id: "import", label: "Excel / CSV Import" },
+          { id: "gsheets", label: "Google Sheets Sync" },
+          { id: "duplicates", label: `Find Duplicates${dupClusters.length ? ` (${dupClusters.length})` : ""}` },
+          { id: "export", label: "Export (.xlsx / .csv)" },
+          { id: "history", label: "Sync & Import History" },
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            className={`btn ${activeTab === tab.id ? "" : "ghost"}`}
+            onClick={() => setActiveTab(tab.id as ActiveTab)}
+          >
+            {tab.label}
           </button>
-        )}
-        <button className={`tab-btn ${tab === "history" ? "active" : ""}`} onClick={() => setTab("history")}>
-          History
-        </button>
+        ))}
       </div>
 
-      {tab === "import" && (
-        <div>
-          <div className="steps" style={{ marginBottom: 16 }}>
-            <span className={`step-item ${step === 1 ? "active" : step > 1 ? "done" : ""}`}>1. Upload</span>
-            <span className={`step-item ${step === 2 ? "active" : step > 2 ? "done" : ""}`}>2. Target &amp; Map</span>
-            <span className={`step-item ${step === 3 ? "active" : step > 3 ? "done" : ""}`}>3. Review</span>
-            <span className={`step-item ${step === 4 ? "active" : ""}`}>4. Done</span>
+      {/* ═══════════════════════════════════════════════════════════════════════
+          TAB 1: EXCEL / CSV IMPORT WITH COLUMN MAPPING & DUPLICATE PREVIEW
+         ═══════════════════════════════════════════════════════════════════════ */}
+      {activeTab === "import" && (
+        <div className="grid" style={{ gap: 16 }}>
+          <div className="card">
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, marginBottom: 14 }}>
+              <div>
+                <b style={{ fontSize: 16 }}>1. Upload Excel or CSV File</b>
+                <p style={{ margin: "4px 0 0", color: "var(--mu)", fontSize: 13 }}>
+                  Supports .xlsx, .xls, .xlsm, .ods, and .csv (Bitrix24, Nexora, or custom headers).
+                </p>
+              </div>
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <label style={{ fontSize: 12, color: "var(--mu)" }}>Import into:</label>
+                <select
+                  value={targetType}
+                  onChange={(e) => setTargetType(e.target.value as TargetEntity)}
+                  style={{ width: "auto" }}
+                >
+                  <option value="leads">Leads Pipeline</option>
+                  <option value="candidates">Candidates Pool</option>
+                </select>
+              </div>
+            </div>
+
+            <div
+              onDragOver={(e) => {
+                e.preventDefault();
+                setDragActive(true);
+              }}
+              onDragLeave={() => setDragActive(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setDragActive(false);
+                const f = e.dataTransfer.files?.[0];
+                if (f) handleFile(f);
+              }}
+              onClick={() => fileInputRef.current?.click()}
+              style={{
+                border: `2px dashed ${dragActive ? "var(--or)" : "var(--bd)"}`,
+                borderRadius: "var(--radius)",
+                padding: "32px 20px",
+                textAlign: "center",
+                cursor: "pointer",
+                background: dragActive ? "rgba(242, 106, 33, 0.06)" : "var(--bg)",
+                transition: "border-color 0.15s, background 0.15s",
+              }}
+            >
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".xlsx,.xls,.xlsm,.xlsb,.ods,.csv,.tsv,.txt"
+                style={{ display: "none" }}
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) handleFile(f);
+                }}
+              />
+              <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>
+                {fileName ? `Selected: ${fileName}` : "Drop Excel (.xlsx / .xls) or CSV file here, or click to browse"}
+              </div>
+              <div style={{ color: "var(--mu)", fontSize: 13 }}>
+                {parsedSheet
+                  ? `${parsedSheet.dataRows.length} data rows • ${parsedSheet.headers.length} columns • Format: ${detectedFormat.toUpperCase()}`
+                  : "Auto-detects columns, normalizes phone/dates/stages, and checks duplicates before saving"}
+              </div>
+            </div>
+
+            {parsedSheet && parsedSheet.sheetNames.length > 1 && (
+              <div style={{ marginTop: 14, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                <span style={{ fontSize: 13, fontWeight: 600 }}>Workbook Sheet:</span>
+                {parsedSheet.sheetNames.map((sn) => (
+                  <button
+                    key={sn}
+                    className={`btn ${parsedSheet.activeSheet === sn ? "" : "ghost"}`}
+                    style={{ padding: "5px 10px", fontSize: 12 }}
+                    onClick={() => handleSheetTabSwitch(sn)}
+                  >
+                    {sn}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
-          {step === 1 && (
-            <div>
-              <label className="card drop-zone" style={{ cursor: "pointer", display: "block", textAlign: "center", padding: "40px 16px" }}>
-                <input type="file" accept=".csv,.txt" hidden onChange={handleFileUpload} />
-                <span style={{ fontSize: 38, display: "block" }}>📄</span>
-                <h3 style={{ margin: "10px 0 4px" }}>Choose a CSV File</h3>
-                <p style={{ color: "var(--mu)", margin: 0 }}>
-                  Auto-detects format: Nexora Staffing Sheet, Bitrix24 CRM Export, or generic CSV.
-                  <br />
-                  Supports comma (,) and semicolon (;) delimiters.
-                </p>
-              </label>
-
-              <div className="grid g2" style={{ marginTop: 16 }}>
-                <div className="card">
-                  <b>📋 Nexora Staffing Sheet</b>
-                  <p style={{ color: "var(--mu)", fontSize: 13, margin: "6px 0 10px" }}>
-                    15-column format: Date, Location, Name, Number, E-mail, LinkedIn, Visa Status, Experience, Lead Type, Lead Source, etc.
-                  </p>
-                  <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-                    {["Date", "Name", "Number", "E-mail", "Visa Status", "Technology", "Lead Person", "Sales Person"].map((h) => (
-                      <span key={h} className="tag" style={{ fontSize: 11 }}>{h}</span>
-                    ))}
+          {parsedSheet && (
+            <>
+              {/* Step 2: Column Mapping */}
+              <div className="card">
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
+                  <div>
+                    <b style={{ fontSize: 16 }}>2. Verify Column Mapping</b>
+                    <span className="pill" style={{ marginLeft: 10 }}>
+                      Detected: {detectedFormat}
+                    </span>
                   </div>
+                  <span style={{ fontSize: 12, color: "var(--mu)" }}>
+                    {normalizedRows.length} valid rows with a candidate/lead name
+                  </span>
                 </div>
-                <div className="card">
-                  <b>🔄 Bitrix24 CRM Export</b>
-                  <p style={{ color: "var(--mu)", fontSize: 13, margin: "6px 0 10px" }}>
-                    Semicolon-separated export with 90+ columns. Auto-maps Lead Name, Stage, Mobile, Work E-mail, LinkedIn, Visa, Job Role, etc.
-                  </p>
-                  <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-                    {["Lead Name", "Stage", "Mobile", "Work E-mail", "Visa", "Job Role", "Responsible", "Lead Generator"].map((h) => (
-                      <span key={h} className="tag" style={{ fontSize: 11 }}>{h}</span>
-                    ))}
-                  </div>
+
+                <div className="grid g3" style={{ gap: 10 }}>
+                  {parsedSheet.headers.map((header, idx) => (
+                    <div
+                      key={`${header}-${idx}`}
+                      style={{
+                        border: "1px solid var(--bd)",
+                        borderRadius: "var(--radius-sm)",
+                        padding: "8px 10px",
+                        background: "var(--bg)",
+                      }}
+                    >
+                      <div style={{ fontSize: 11, color: "var(--mu)", marginBottom: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        Spreadsheet: <strong style={{ color: "var(--tx)" }}>{header}</strong>
+                      </div>
+                      <select
+                        value={columnMap[idx] || "ignore"}
+                        onChange={(e) =>
+                          setColumnMap((prev) => ({
+                            ...prev,
+                            [idx]: e.target.value as TargetFieldKey,
+                          }))
+                        }
+                        style={{ padding: "6px 8px", fontSize: 13 }}
+                      >
+                        {TARGET_FIELD_OPTIONS.map((opt) => (
+                          <option key={opt.key} value={opt.key}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  ))}
                 </div>
               </div>
-            </div>
-          )}
 
-          {step === 2 && (
+              {/* Step 3: Duplicate Check & Strategy */}
+              <div className="card">
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12, marginBottom: 14 }}>
+                  <div>
+                    <b style={{ fontSize: 16 }}>3. Duplicate Detection &amp; Import Options</b>
+                    <p style={{ margin: "4px 0 0", color: "var(--mu)", fontSize: 13 }}>
+                      Checks incoming rows against {existingRecordsForDedupe.length} existing {targetType} and earlier rows in this file.
+                    </p>
+                  </div>
+                  <div style={{ display: "flex", gap: 12, flexWrap: "wrap", fontSize: 13 }}>
+                    <label style={{ display: "flex", alignItems: "center", gap: 5, cursor: "pointer" }}>
+                      <input
+                        type="checkbox"
+                        style={{ width: "auto" }}
+                        checked={matchOptions.matchByEmail}
+                        onChange={(e) => setMatchOptions((o) => ({ ...o, matchByEmail: e.target.checked }))}
+                      />
+                      Email
+                    </label>
+                    <label style={{ display: "flex", alignItems: "center", gap: 5, cursor: "pointer" }}>
+                      <input
+                        type="checkbox"
+                        style={{ width: "auto" }}
+                        checked={matchOptions.matchByPhone}
+                        onChange={(e) => setMatchOptions((o) => ({ ...o, matchByPhone: e.target.checked }))}
+                      />
+                      Phone
+                    </label>
+                    <label style={{ display: "flex", alignItems: "center", gap: 5, cursor: "pointer" }}>
+                      <input
+                        type="checkbox"
+                        style={{ width: "auto" }}
+                        checked={matchOptions.matchByLinkedin}
+                        onChange={(e) => setMatchOptions((o) => ({ ...o, matchByLinkedin: e.target.checked }))}
+                      />
+                      LinkedIn
+                    </label>
+                    <label style={{ display: "flex", alignItems: "center", gap: 5, cursor: "pointer" }}>
+                      <input
+                        type="checkbox"
+                        style={{ width: "auto" }}
+                        checked={matchOptions.matchByName}
+                        onChange={(e) => setMatchOptions((o) => ({ ...o, matchByName: e.target.checked }))}
+                      />
+                      Exact Name
+                    </label>
+                  </div>
+                </div>
+
+                {duplicateAnalysis && (
+                  <div className="grid g4" style={{ marginBottom: 16 }}>
+                    <div className="card kpi">
+                      <span>Ready to Import</span>
+                      <b>{normalizedRows.length}</b>
+                    </div>
+                    <div className="card kpi">
+                      <span>Brand New Records</span>
+                      <b style={{ color: "var(--ok)" }}>{duplicateAnalysis.newCount}</b>
+                    </div>
+                    <div className="card kpi">
+                      <span>Already in Database</span>
+                      <b style={{ color: "var(--or)" }}>{duplicateAnalysis.dbDuplicateCount}</b>
+                    </div>
+                    <div className="card kpi">
+                      <span>Duplicates in File</span>
+                      <b style={{ color: "var(--bad)" }}>{duplicateAnalysis.fileDuplicateCount}</b>
+                    </div>
+                  </div>
+                )}
+
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, marginBottom: 14 }}>
+                  <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                    <span style={{ fontSize: 13, fontWeight: 600 }}>When duplicate is found:</span>
+                    <select
+                      value={duplicateMode}
+                      onChange={(e) => setDuplicateMode(e.target.value as DuplicateStrategy)}
+                      style={{ width: "auto" }}
+                    >
+                      <option value="skip">Skip duplicates (recommended)</option>
+                      <option value="update">Update existing record with new fields</option>
+                      <option value="allow">Import everything (allow duplicates)</option>
+                    </select>
+                  </div>
+
+                  <button
+                    className="btn"
+                    disabled={importing || normalizedRows.length === 0}
+                    onClick={handleExecuteImport}
+                  >
+                    {importing ? "Importing into PostgreSQL…" : `Import ${normalizedRows.length} ${targetType === "leads" ? "Leads" : "Candidates"}`}
+                  </button>
+                </div>
+
+                {importSummary && (
+                  <div
+                    style={{
+                      padding: "12px 14px",
+                      borderRadius: "var(--radius-sm)",
+                      background: "rgba(31, 157, 107, 0.12)",
+                      border: "1px solid var(--ok)",
+                      marginBottom: 14,
+                      fontSize: 13,
+                    }}
+                  >
+                    <strong>Import Complete:</strong> {importSummary.addedCount} added, {importSummary.updatedCount} updated,{" "}
+                    {importSummary.skippedCount} skipped.
+                  </div>
+                )}
+
+                {duplicateAnalysis && duplicateAnalysis.items.length > 0 && (
+                  <div className="tbl">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Row</th>
+                          <th>Status</th>
+                          <th>Name</th>
+                          <th>Email</th>
+                          <th>Phone</th>
+                          <th>Technology / Role</th>
+                          <th>Stage</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {duplicateAnalysis.items.slice(0, 25).map((item) => (
+                          <tr key={`${item.index}-${item.row.name}`}>
+                            <td style={{ color: "var(--mu)" }}>#{item.row.rowIndex}</td>
+                            <td>
+                              {item.status === "new" && <span className="pill ok">New</span>}
+                              {item.status === "db_duplicate" && (
+                                <span className="pill or" title={`Matches DB: ${item.matchedExistingName}`}>
+                                  DB Dup ({item.matchReasons.join(", ")})
+                                </span>
+                              )}
+                              {item.status === "file_duplicate" && (
+                                <span className="pill bad" title={`Matches Row #${item.matchedFileRowIndex}`}>
+                                  File Dup ({item.matchReasons.join(", ")})
+                                </span>
+                              )}
+                            </td>
+                            <td><strong>{item.row.name}</strong></td>
+                            <td>{item.row.email || "—"}</td>
+                            <td>{item.row.phone || "—"}</td>
+                            <td>{item.row.technology || "—"}</td>
+                            <td><span className="pill">{item.row.stage}</span></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    {duplicateAnalysis.items.length > 25 && (
+                      <div style={{ fontSize: 12, color: "var(--mu)", paddingTop: 8 }}>
+                        Showing first 25 of {duplicateAnalysis.items.length} parsed rows.
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════════
+          TAB 2: GOOGLE SHEETS DIRECT SYNC
+         ═══════════════════════════════════════════════════════════════════════ */}
+      {activeTab === "gsheets" && (
+        <div className="grid" style={{ gap: 16 }}>
+          <div className="card">
+            <b style={{ fontSize: 16 }}>Connect a Google Sheet</b>
+            <p style={{ margin: "4px 0 14px", color: "var(--mu)", fontSize: 13 }}>
+              Paste any Google Sheet link shared with <em>&ldquo;Anyone with the link can view&rdquo;</em> (or published to the web). Nexora fetches live rows directly into PostgreSQL.
+            </p>
+
+            <div className="grid g2" style={{ gap: 10, marginBottom: 12 }}>
+              <div>
+                <label style={{ fontSize: 12, color: "var(--mu)", display: "block", marginBottom: 4 }}>Google Sheet URL *</label>
+                <input
+                  placeholder="https://docs.google.com/spreadsheets/d/..."
+                  value={sheetUrl}
+                  onChange={(e) => setSheetUrl(e.target.value)}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: 12, color: "var(--mu)", display: "block", marginBottom: 4 }}>Connection Name (optional)</label>
+                <input
+                  placeholder="e.g. Daily Recruiting Leads Sheet"
+                  value={sheetAlias}
+                  onChange={(e) => setSheetAlias(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="grid g3" style={{ gap: 10, marginBottom: 14 }}>
+              <div>
+                <label style={{ fontSize: 12, color: "var(--mu)", display: "block", marginBottom: 4 }}>Tab / Sheet Name (optional)</label>
+                <input
+                  placeholder="Leave blank for URL gid or first tab"
+                  value={sheetTabName}
+                  onChange={(e) => setSheetTabName(e.target.value)}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: 12, color: "var(--mu)", display: "block", marginBottom: 4 }}>Target Table</label>
+                <select value={sheetTarget} onChange={(e) => setSheetTarget(e.target.value as TargetEntity)}>
+                  <option value="leads">Leads Pipeline</option>
+                  <option value="candidates">Candidates Pool</option>
+                </select>
+              </div>
+              <div>
+                <label style={{ fontSize: 12, color: "var(--mu)", display: "block", marginBottom: 4 }}>Duplicate Handling</label>
+                <select value={sheetDupMode} onChange={(e) => setSheetDupMode(e.target.value as DuplicateStrategy)}>
+                  <option value="skip">Skip existing duplicates</option>
+                  <option value="update">Update existing records</option>
+                  <option value="allow">Allow all rows</option>
+                </select>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button className="btn ghost" disabled={sheetLoading} onClick={() => handlePreviewGoogleSheet()}>
+                {sheetLoading ? "Fetching…" : "Preview Sheet"}
+              </button>
+              <button className="btn" disabled={sheetLoading} onClick={() => handleSyncGoogleSheet()}>
+                {sheetLoading ? "Syncing…" : "Sync Now to Database"}
+              </button>
+              <button className="btn navy" disabled={sheetLoading} onClick={handleSaveSheetConnection}>
+                Save Connection
+              </button>
+            </div>
+          </div>
+
+          {sheetPreview && (
             <div className="card">
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-                <h3 style={{ margin: 0 }}>File loaded: {fileName}</h3>
-                <span className="pill ok" style={{ fontSize: 12 }}>{formatLabel}</span>
-              </div>
-              <p style={{ color: "var(--mu)" }}>
-                We found <b>{parsedRows.length}</b> valid records ready to import.
-              </p>
-
-              {detectedFormat === "bitrix24" && (
-                <div style={{ background: "var(--b2)", borderRadius: 8, padding: "10px 14px", margin: "10px 0", fontSize: 13 }}>
-                  <b>Bitrix24 Auto-Mapping:</b> Lead Name → Name, Stage → Stage (case-matched to 16 Nexora stages),
-                  Mobile → Phone, Work E-mail → Email, LinkedIn → LinkedIn, Visa → Visa Status,
-                  Total Experience → Experience, Source → Lead Source, Responsible → Sales Person,
-                  Lead Generator → Lead Person, Created → Date (DD.MM → YYYY-MM-DD)
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10, marginBottom: 12 }}>
+                <div>
+                  <b style={{ fontSize: 15 }}>Preview: {sheetPreview.sheetTitle}</b>
+                  <span className="pill" style={{ marginLeft: 8 }}>Format: {sheetPreview.detectedFormat}</span>
                 </div>
-              )}
-
-              <div style={{ margin: "16px 0" }}>
-                <label style={{ fontSize: 13, fontWeight: 600, display: "block", marginBottom: 6 }}>
-                  Select Import Destination:
-                </label>
-                <div style={{ display: "flex", gap: 12 }}>
-                  <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
-                    <input
-                      type="radio"
-                      name="targetType"
-                      checked={targetType === "leads"}
-                      onChange={() => setTargetType("leads")}
-                    />
-                    <b>Recruitment Leads Database</b> (Matches staffing sourcing sheet)
-                  </label>
-                  <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
-                    <input
-                      type="radio"
-                      name="targetType"
-                      checked={targetType === "candidates"}
-                      onChange={() => setTargetType("candidates")}
-                    />
-                    <b>Candidate Talent Pool</b>
-                  </label>
-                </div>
-              </div>
-
-              <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
-                <button className="btn ghost" onClick={() => setStep(1)}>
-                  ← Choose another file
-                </button>
-                <button className="btn" onClick={() => setStep(3)}>
-                  Next: Review rows →
-                </button>
-              </div>
-            </div>
-          )}
-
-          {step === 3 && (
-            <div>
-              <div className="grid g4" style={{ marginBottom: 14 }}>
-                <div className="card kpi">
-                  <span>Total Records</span>
-                  <b>{parsedRows.length}</b>
-                </div>
-                <div className="card kpi">
-                  <span>Source Format</span>
-                  <b style={{ fontSize: 16 }}>{detectedFormat === "bitrix24" ? "Bitrix24" : detectedFormat === "nexora" ? "Nexora" : "CSV"}</b>
-                </div>
-                <div className="card kpi">
-                  <span>Destination</span>
-                  <b style={{ fontSize: 16 }}>{targetType === "leads" ? "Leads DB" : "Talent Pool"}</b>
-                </div>
-                <div className="card kpi">
-                  <span>Stages Found</span>
-                  <b>{Object.keys(stageCounts).length}</b>
-                </div>
-              </div>
-
-              {/* Stage distribution */}
-              {targetType === "leads" && Object.keys(stageCounts).length > 1 && (
-                <div className="card" style={{ marginBottom: 14 }}>
-                  <b>Stage Distribution</b>
-                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
-                    {Object.entries(stageCounts)
-                      .sort(([, a], [, b]) => b - a)
-                      .map(([stage, count]) => (
-                        <span key={stage} className="tag" style={{ fontSize: 12 }}>
-                          {stage}: {count}
-                        </span>
-                      ))}
+                {sheetPreview.availableTabs.length > 1 && (
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+                    <span style={{ fontSize: 12, color: "var(--mu)" }}>Tabs:</span>
+                    {sheetPreview.availableTabs.map((tab) => (
+                      <button
+                        key={tab}
+                        className={`btn ${sheetTabName === tab ? "" : "ghost"}`}
+                        style={{ padding: "4px 9px", fontSize: 12 }}
+                        onClick={() => handlePreviewGoogleSheet(tab)}
+                      >
+                        {tab}
+                      </button>
+                    ))}
                   </div>
-                </div>
-              )}
+                )}
+              </div>
 
-              <div className="card tbl" style={{ marginBottom: 14 }}>
-                <b>Preview First 5 Records</b>
+              <div className="grid g4" style={{ marginBottom: 14 }}>
+                <div className="card kpi"><span>Fetched Rows</span><b>{sheetPreview.duplicateSummary.total}</b></div>
+                <div className="card kpi"><span>New Records</span><b style={{ color: "var(--ok)" }}>{sheetPreview.duplicateSummary.newCount}</b></div>
+                <div className="card kpi"><span>Already in DB</span><b style={{ color: "var(--or)" }}>{sheetPreview.duplicateSummary.dbDuplicateCount}</b></div>
+                <div className="card kpi"><span>In-Sheet Dups</span><b style={{ color: "var(--bad)" }}>{sheetPreview.duplicateSummary.fileDuplicateCount}</b></div>
+              </div>
+
+              <div className="tbl">
                 <table>
                   <thead>
                     <tr>
+                      <th>Row</th>
+                      <th>Status</th>
                       <th>Name</th>
-                      <th>Stage</th>
-                      <th>Phone</th>
                       <th>Email</th>
-                      <th>Visa</th>
-                      <th>LinkedIn</th>
-                      <th>Sales Person</th>
+                      <th>Phone</th>
+                      <th>Technology</th>
+                      <th>Stage</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {parsedRows.slice(0, 5).map((r, i) => (
-                      <tr key={i}>
-                        <td><b>{r["name"]}</b></td>
-                        <td><span className="pill">{r["stage"] || "New Lead"}</span></td>
-                        <td>{r["phone"] || "—"}</td>
-                        <td style={{ maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis" }}>{r["email"] || "—"}</td>
-                        <td>{r["visaStatus"] ? <span className="pill">{r["visaStatus"]}</span> : "—"}</td>
-                        <td>{r["linkedin"] ? "✓" : "—"}</td>
-                        <td>{r["salesPerson"] || "—"}</td>
+                    {sheetPreview.duplicateSummary.previewItems.slice(0, 20).map((item) => (
+                      <tr key={`${item.index}-${item.row.name}`}>
+                        <td style={{ color: "var(--mu)" }}>#{item.row.rowIndex}</td>
+                        <td>
+                          {item.status === "new" && <span className="pill ok">New</span>}
+                          {item.status === "db_duplicate" && <span className="pill or">DB Dup ({item.matchReasons.join(", ")})</span>}
+                          {item.status === "file_duplicate" && <span className="pill bad">Sheet Dup</span>}
+                        </td>
+                        <td><strong>{item.row.name}</strong></td>
+                        <td>{item.row.email || "—"}</td>
+                        <td>{item.row.phone || "—"}</td>
+                        <td>{item.row.technology || "—"}</td>
+                        <td><span className="pill">{item.row.stage}</span></td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
-
-              <div style={{ display: "flex", gap: 10 }}>
-                <button className="btn ghost" onClick={() => setStep(2)}>
-                  ← Back
-                </button>
-                <button className="btn" onClick={executeImport}>
-                  Confirm &amp; Import {parsedRows.length} {targetType === "leads" ? "Leads" : "Candidates"}
-                </button>
-              </div>
             </div>
           )}
 
-          {step === 4 && (
-            <div className="card empty-state">
-              <span className="big" style={{ color: "var(--ok)" }}>✓</span>
-              <h3>Import Complete!</h3>
-              <p>{parsedRows.length} records were added into your {targetType === "leads" ? "Leads" : "Candidate"} database.</p>
-              <div style={{ display: "flex", gap: 10, justifyContent: "center", marginTop: 16 }}>
-                <Link
-                  href={targetType === "leads" ? "/leads" : "/candidates"}
-                  className="btn"
-                  style={{ textDecoration: "none" }}
-                >
-                  View {targetType === "leads" ? "Leads Database" : "Candidates Database"} →
-                </Link>
-                <button
-                  className="btn ghost"
-                  onClick={() => {
-                    setStep(1);
-                    setParsedRows([]);
-                    setFileName("");
-                    setDetectedFormat("unknown");
+          {/* Saved Google Sheets */}
+          <div className="card">
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+              <b style={{ fontSize: 15 }}>Saved Google Sheet Connections ({savedSheets.length})</b>
+              <button className="btn ghost" onClick={loadSavedSheets} style={{ padding: "5px 10px", fontSize: 12 }}>
+                Refresh
+              </button>
+            </div>
+
+            {savedSheets.length === 0 ? (
+              <p style={{ color: "var(--mu)", fontSize: 13, margin: 0 }}>
+                No saved Google Sheets yet. Paste a link above and click Sync Now or Save Connection.
+              </p>
+            ) : (
+              <div className="tbl">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Target</th>
+                      <th>Last Sync</th>
+                      <th>Summary</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {savedSheets.map((s) => (
+                      <tr key={s.id}>
+                        <td>
+                          <strong>{s.name}</strong>
+                          <div style={{ fontSize: 11, color: "var(--mu)" }}>
+                            {s.sheetName ? `Tab: ${s.sheetName}` : `gid=${s.gid || "0"}`}
+                          </div>
+                        </td>
+                        <td><span className="pill">{s.targetType}</span></td>
+                        <td style={{ fontSize: 12, color: "var(--mu)" }}>
+                          {s.lastSyncedAt ? new Date(s.lastSyncedAt).toLocaleString() : "Never"}
+                        </td>
+                        <td style={{ fontSize: 12 }}>{s.lastSyncSummary || "—"}</td>
+                        <td>
+                          <div style={{ display: "flex", gap: 6 }}>
+                            <button
+                              className="btn"
+                              style={{ padding: "5px 10px", fontSize: 12 }}
+                              disabled={syncingSheetId === s.id}
+                              onClick={() => handleSyncGoogleSheet({ sourceId: s.id })}
+                            >
+                              {syncingSheetId === s.id ? "Syncing…" : "Sync Now"}
+                            </button>
+                            <button
+                              className="btn ghost"
+                              style={{ padding: "5px 10px", fontSize: 12 }}
+                              onClick={() => handleDeleteSavedSheet(s.id)}
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════════
+          TAB 3: FIND & MERGE DUPLICATES IN DATABASE
+         ═══════════════════════════════════════════════════════════════════════ */}
+      {activeTab === "duplicates" && (
+        <div className="grid" style={{ gap: 16 }}>
+          <div className="card">
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, marginBottom: 14 }}>
+              <div>
+                <b style={{ fontSize: 16 }}>Database Duplicate Scanner &amp; Merger</b>
+                <p style={{ margin: "4px 0 0", color: "var(--mu)", fontSize: 13 }}>
+                  Finds duplicate records across normalized email, phone, LinkedIn, and optional full name. Merging keeps the richest record and migrates notes.
+                </p>
+              </div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <select
+                  value={dupTarget}
+                  onChange={(e) => {
+                    const next = e.target.value as TargetEntity;
+                    setDupTarget(next);
+                    scanDuplicates(next, dupOptions);
                   }}
+                  style={{ width: "auto" }}
                 >
-                  Import Another File
+                  <option value="leads">Scan Leads</option>
+                  <option value="candidates">Scan Candidates</option>
+                </select>
+                <button className="btn ghost" disabled={dupScanning} onClick={() => scanDuplicates()}>
+                  {dupScanning ? "Scanning…" : "Re-scan"}
+                </button>
+                <button
+                  className="btn"
+                  disabled={dupActionBusy !== null || dupClusters.filter((c) => c.confidence === "high").length === 0}
+                  onClick={handleAutoMergeHighConfidence}
+                >
+                  {dupActionBusy === "auto_merge" ? "Merging…" : "Auto-Merge High Confidence"}
                 </button>
               </div>
             </div>
+
+            <div style={{ display: "flex", gap: 14, flexWrap: "wrap", fontSize: 13, marginBottom: 14 }}>
+              <span style={{ color: "var(--mu)", fontWeight: 600 }}>Match by:</span>
+              <label style={{ display: "flex", alignItems: "center", gap: 5, cursor: "pointer" }}>
+                <input
+                  type="checkbox"
+                  style={{ width: "auto" }}
+                  checked={dupOptions.matchByEmail}
+                  onChange={(e) => setDupOptions((o) => ({ ...o, matchByEmail: e.target.checked }))}
+                />
+                Email
+              </label>
+              <label style={{ display: "flex", alignItems: "center", gap: 5, cursor: "pointer" }}>
+                <input
+                  type="checkbox"
+                  style={{ width: "auto" }}
+                  checked={dupOptions.matchByPhone}
+                  onChange={(e) => setDupOptions((o) => ({ ...o, matchByPhone: e.target.checked }))}
+                />
+                Phone
+              </label>
+              <label style={{ display: "flex", alignItems: "center", gap: 5, cursor: "pointer" }}>
+                <input
+                  type="checkbox"
+                  style={{ width: "auto" }}
+                  checked={dupOptions.matchByLinkedin}
+                  onChange={(e) => setDupOptions((o) => ({ ...o, matchByLinkedin: e.target.checked }))}
+                />
+                LinkedIn URL
+              </label>
+              <label style={{ display: "flex", alignItems: "center", gap: 5, cursor: "pointer" }}>
+                <input
+                  type="checkbox"
+                  style={{ width: "auto" }}
+                  checked={dupOptions.matchByName}
+                  onChange={(e) => setDupOptions((o) => ({ ...o, matchByName: e.target.checked }))}
+                />
+                Exact Full Name
+              </label>
+            </div>
+
+            <div className="grid g3">
+              <div className="card kpi"><span>Records Scanned</span><b>{dupTotalRecords}</b></div>
+              <div className="card kpi"><span>Duplicate Groups</span><b style={{ color: "var(--or)" }}>{dupClusters.length}</b></div>
+              <div className="card kpi"><span>Extra Duplicate Rows</span><b style={{ color: "var(--bad)" }}>{totalExtraDuplicates}</b></div>
+            </div>
+          </div>
+
+          {dupClusters.length === 0 && !dupScanning ? (
+            <div className="card">
+              <p style={{ margin: 0, color: "var(--mu)" }}>
+                No duplicate clusters found with the current matching criteria.
+              </p>
+            </div>
+          ) : (
+            dupClusters.slice(0, 40).map((cluster) => (
+              <div key={cluster.clusterId} className="card">
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10, marginBottom: 10 }}>
+                  <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                    <strong style={{ fontSize: 15 }}>{cluster.primary.name}</strong>
+                    <span className={`pill ${cluster.confidence === "high" ? "or" : ""}`}>
+                      {cluster.confidence.toUpperCase()} ({cluster.records.length} records)
+                    </span>
+                    <span style={{ fontSize: 12, color: "var(--mu)" }}>{cluster.matchKeySummary}</span>
+                  </div>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button
+                      className="btn"
+                      style={{ padding: "6px 12px", fontSize: 12 }}
+                      disabled={dupActionBusy !== null}
+                      onClick={() => handleMergeCluster(cluster)}
+                    >
+                      {dupActionBusy === cluster.clusterId ? "Working…" : "Merge into Primary"}
+                    </button>
+                    <button
+                      className="btn ghost"
+                      style={{ padding: "6px 12px", fontSize: 12 }}
+                      disabled={dupActionBusy !== null}
+                      onClick={() => handleDeleteClusterDuplicates(cluster)}
+                    >
+                      Delete Duplicates
+                    </button>
+                  </div>
+                </div>
+
+                <div className="tbl">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Role</th>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Phone</th>
+                        <th>Technology</th>
+                        <th>Stage</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {cluster.records.map((rec, idx) => (
+                        <tr key={rec.id}>
+                          <td>
+                            {idx === 0 ? (
+                              <span className="pill ok">Primary (Keep)</span>
+                            ) : (
+                              <span className="pill bad">Duplicate</span>
+                            )}
+                          </td>
+                          <td><strong>{rec.name}</strong></td>
+                          <td>{rec.email || "—"}</td>
+                          <td>{rec.phone || "—"}</td>
+                          <td>{rec.technology || rec.role || "—"}</td>
+                          <td><span className="pill">{rec.stage || "New Lead"}</span></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ))
+          )}
+          {dupClusters.length > 40 && (
+            <p style={{ color: "var(--mu)", fontSize: 13 }}>
+              Showing first 40 of {dupClusters.length} duplicate groups. Use Auto-Merge High Confidence to clean all verified email/phone/LinkedIn duplicates at once.
+            </p>
           )}
         </div>
       )}
 
-      {tab === "export" && !isAdmin && (
-        <div className="card empty-state">
-          <span className="big">🔒</span>
-          <h3>Export Restricted</h3>
-          <p style={{ color: "var(--mu)", fontSize: 13, marginTop: 6 }}>
-            Exporting staffing leads and candidate records is restricted to Administrators only.
-          </p>
-        </div>
-      )}
-
-      {tab === "export" && isAdmin && (
+      {/* ═══════════════════════════════════════════════════════════════════════
+          TAB 4: EXPORT (.XLSX & .CSV)
+         ═══════════════════════════════════════════════════════════════════════ */}
+      {activeTab === "export" && (
         <div className="grid g2">
-          {/* Export Leads */}
           <div className="card">
-            <b>Export Staffing Leads</b>
-            <p style={{ color: "var(--mu)", fontSize: 13, margin: "6px 0 12px" }}>
-              Exports all {leads.length} leads in the exact 15-column format:
-              <br />
-              <code style={{ fontSize: 11, display: "block", marginTop: 4 }}>
-                Date, Location, Name, Number, E-mail, Linkedin/ Facebook, Visa Status, Experience, Lead Type, Lead Source, Lead Person, Sales Person, Technology, Account Ref, Remark
-              </code>
+            <b style={{ fontSize: 16 }}>Export Leads ({leads.length})</b>
+            <p style={{ color: "var(--mu)", fontSize: 13, margin: "6px 0 14px" }}>
+              Download the complete Leads database including LinkedIn URLs, visa status, stages, and remarks.
             </p>
-            <button className="btn" style={{ width: "100%" }} onClick={handleExportLeadsCsv}>
-              ⬇ Download {leads.length} Leads (Staffing CSV)
-            </button>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button className="btn" onClick={() => handleExport("leads", "xlsx")}>
+                Download Excel (.xlsx)
+              </button>
+              <button className="btn ghost" onClick={() => handleExport("leads", "csv")}>
+                Download CSV (.csv)
+              </button>
+            </div>
           </div>
 
-          {/* Export Candidates */}
           <div className="card">
-            <b>Export Talent Candidates</b>
-            <p style={{ color: "var(--mu)", fontSize: 13, margin: "6px 0 12px" }}>
-              Exports all {candidates.length} candidate profiles including pipeline stages, skills, and experience.
+            <b style={{ fontSize: 16 }}>Export Candidates ({candidates.length})</b>
+            <p style={{ color: "var(--mu)", fontSize: 13, margin: "6px 0 14px" }}>
+              Download all candidates with skills, experience, location, stage, and contact details.
             </p>
-            <button className="btn ghost" style={{ width: "100%", marginTop: 24 }} onClick={handleExportCandidatesCsv}>
-              ⬇ Download {candidates.length} Candidates as CSV
-            </button>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button className="btn" onClick={() => handleExport("candidates", "xlsx")}>
+                Download Excel (.xlsx)
+              </button>
+              <button className="btn ghost" onClick={() => handleExport("candidates", "csv")}>
+                Download CSV (.csv)
+              </button>
+            </div>
           </div>
         </div>
       )}
 
-      {tab === "history" && (
-        <div className="card tbl">
-          <table>
-            <thead>
-              <tr>
-                <th>Type</th>
-                <th>Target</th>
-                <th>File Name</th>
-                <th>Result</th>
-                <th>Operator</th>
-                <th>When</th>
-              </tr>
-            </thead>
-            <tbody>
-              {history.map((h, i) => (
-                <tr key={i}>
-                  <td><span className={`pill ${h.type === "Import" ? "ok" : "or"}`}>{h.type}</span></td>
-                  <td><b>{h.target}</b></td>
-                  <td>{h.file}</td>
-                  <td>{h.result}</td>
-                  <td>{h.by}</td>
-                  <td>{h.when}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {/* ═══════════════════════════════════════════════════════════════════════
+          TAB 5: SYNC & IMPORT HISTORY
+         ═══════════════════════════════════════════════════════════════════════ */}
+      {activeTab === "history" && (
+        <div className="card">
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+            <b style={{ fontSize: 16 }}>Import, Sync &amp; Deduplication History</b>
+            <button className="btn ghost" onClick={loadHistoryLogs} disabled={historyLoading}>
+              {historyLoading ? "Loading…" : "Refresh"}
+            </button>
+          </div>
+          {historyLogs.length === 0 ? (
+            <p style={{ color: "var(--mu)", fontSize: 13, margin: 0 }}>No import or sync events recorded yet.</p>
+          ) : (
+            <div className="tbl">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Time</th>
+                    <th>Action</th>
+                    <th>Target</th>
+                    <th>Source</th>
+                    <th>Results</th>
+                    <th>Actor</th>
+                    <th>Details</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {historyLogs.map((log) => (
+                    <tr key={log.id}>
+                      <td style={{ fontSize: 12, color: "var(--mu)", whiteSpace: "nowrap" }}>
+                        {new Date(log.createdAt).toLocaleString()}
+                      </td>
+                      <td><span className="pill">{log.actionType}</span></td>
+                      <td>{log.targetType}</td>
+                      <td><strong>{log.sourceName}</strong></td>
+                      <td style={{ fontSize: 12, whiteSpace: "nowrap" }}>
+                        <span style={{ color: "var(--ok)", fontWeight: 600 }}>+{log.addedCount}</span>{" / "}
+                        <span style={{ color: "var(--or)", fontWeight: 600 }}>~{log.updatedCount}</span>{" / "}
+                        <span style={{ color: "var(--mu)" }}>{log.skippedCount} skipped</span>
+                      </td>
+                      <td>{log.actor}</td>
+                      <td style={{ fontSize: 12, color: "var(--mu)" }}>{log.details || "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
     </CrmShell>

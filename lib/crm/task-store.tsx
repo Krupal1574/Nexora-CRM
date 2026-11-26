@@ -25,10 +25,8 @@ export interface CrmTask extends Task {
   createdAt: string;
 }
 
-let taskCounter = 100;
 function genTaskId(): string {
-  taskCounter += 1;
-  return `task-${taskCounter}`;
+  return `task_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 }
 
 const todayStr = new Date().toISOString().split("T")[0];

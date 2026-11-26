@@ -21,10 +21,8 @@ export interface CrmJob extends Job {
   updatedAt: string;
 }
 
-let jobCounter = 100;
 function genJobId(): string {
-  jobCounter += 1;
-  return `job-${jobCounter}`;
+  return `job_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 }
 
 const INITIAL_JOBS: CrmJob[] = SAMPLE_JOBS.map((j, idx) => ({

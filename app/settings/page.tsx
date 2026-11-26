@@ -1,8 +1,31 @@
 "use client";
+import { useEffect, useState } from "react";
 import { CrmShell } from "@/components/crm-shell";
 import { SoonButton } from "@/lib/crm/toast-context";
 
+interface CrmStatusInfo {
+  connected: boolean;
+  provider?: string;
+  counts?: {
+    leads: number;
+    candidates: number;
+    clients: number;
+    jobs: number;
+    tasks: number;
+    sheetSources: number;
+  };
+}
+
 export default function SettingsPage() {
+  const [status, setStatus] = useState<CrmStatusInfo | null>(null);
+
+  useEffect(() => {
+    fetch("/api/crm/status")
+      .then((r) => r.json())
+      .then((d) => setStatus(d))
+      .catch(() => setStatus({ connected: false }));
+  }, []);
+
   const toggleTheme = () => {
     const root = document.documentElement;
     const isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
@@ -42,7 +65,22 @@ export default function SettingsPage() {
 
         <div className="card">
           <b>Integrations</b>
-          <div className="row"><span>Database</span><span className="pill bad">Not connected</span></div>
+          <div className="row">
+            <span>Database ({status?.provider || "PostgreSQL"})</span>
+            {status === null ? (
+              <span className="pill">Checking…</span>
+            ) : status.connected ? (
+              <span className="pill ok">
+                Connected{status.counts ? ` (${status.counts.leads} leads)` : ""}
+              </span>
+            ) : (
+              <span className="pill bad">Not connected</span>
+            )}
+          </div>
+          <div className="row">
+            <span>Google Sheets Sync</span>
+            <span className="pill ok">Enabled</span>
+          </div>
           <div className="row"><span>Email sync</span><span className="pill soon">Coming soon</span></div>
           <div className="row"><span>Calendar</span><span className="pill soon">Coming soon</span></div>
           <div className="row"><span>Resume parsing</span><span className="pill soon">Coming soon</span></div>
@@ -56,4 +94,3 @@ export default function SettingsPage() {
     </CrmShell>
   );
 }
-

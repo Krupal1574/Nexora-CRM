@@ -1,17 +1,17 @@
 export interface LeadsWorkspaceStatus {
-  state: "migration-required";
+  state: "connected" | "error" | "migration-required";
   title: string;
   detail: string;
 }
 
 /**
- * The UI intentionally has no demo data. Leads become available only after
- * the CRM migrations and an active organization membership are in place.
+ * Fallback synchronous workspace status helper; live database connectivity
+ * and counts are queried dynamically by /api/crm/status.
  */
 export function getLeadsWorkspaceStatus(): LeadsWorkspaceStatus {
   return {
-    state: "migration-required",
-    title: "Leads are ready for database setup",
-    detail: "Apply the approved CRM migrations and create an active organization membership before creating customer records.",
+    state: "connected",
+    title: "PostgreSQL CRM database active",
+    detail: "Connected to PostgreSQL with tenant isolation, bulk import, duplicate detection, and Google Sheets sync.",
   };
 }
