@@ -114,8 +114,26 @@ function LoginForm() {
       {/* Brand / hero panel (hidden on small screens) */}
       <aside className="login-hero" aria-hidden="true">
         <div className="login-hero-top">
-          <div className="login-logo-badge login-hero-logo">N</div>
+          <img
+            src="/images/favicon.png"
+            alt="Nexora"
+            style={{
+              width: 38,
+              height: 38,
+              borderRadius: 10,
+              objectFit: "cover",
+              background: "#fff",
+            }}
+          />
           <span className="login-hero-name">Nexora</span>
+        </div>
+
+        <div style={{ margin: "16px 0 8px", borderRadius: 12, overflow: "hidden", border: "1px solid rgba(255,255,255,0.14)" }}>
+          <img
+            src="/images/nexora-banner.png"
+            alt="Nexora Staffing LLP — People Talent Growth"
+            style={{ width: "100%", height: "auto", display: "block" }}
+          />
         </div>
 
         <div className="login-hero-body">
@@ -144,7 +162,19 @@ function LoginForm() {
       <div className="login-card">
         {/* Brand Header */}
         <div className="login-brand">
-          <div className="login-logo-badge">N</div>
+          <img
+            src="/images/favicon.png"
+            alt="Nexora"
+            style={{
+              width: 48,
+              height: 48,
+              borderRadius: 12,
+              objectFit: "cover",
+              margin: "0 auto 10px",
+              display: "block",
+              background: "#fff",
+            }}
+          />
           <h1>Welcome back</h1>
           <p className="login-sub">Sign in to Nexora CRM to continue</p>
         </div>

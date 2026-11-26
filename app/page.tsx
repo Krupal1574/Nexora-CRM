@@ -43,6 +43,29 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* Brand Banner */}
+      <div
+        className="card"
+        style={{
+          padding: 0,
+          overflow: "hidden",
+          marginBottom: 18,
+          background: "#fff",
+        }}
+      >
+        <img
+          src="/images/nexora-banner.png"
+          alt="Nexora Staffing LLP — People Talent Growth"
+          style={{
+            width: "100%",
+            maxHeight: 150,
+            objectFit: "cover",
+            objectPosition: "center",
+            display: "block",
+          }}
+        />
+      </div>
+
       {/* KPI Cards */}
       <div className="grid g4" style={{ marginBottom: 18 }}>
         {kpis.map((kpi) => (

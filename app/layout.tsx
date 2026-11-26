@@ -6,7 +6,13 @@ export const metadata: Metadata = {
   title: "Nexora CRM",
   description: "Nexora CRM — People, Talent, Growth.",
   icons: {
-    icon: "/favicon.png",
+    icon: [
+      { url: "/images/favicon.png", type: "image/png" },
+      { url: "/images/favicon.webp", type: "image/webp" },
+      { url: "/favicon.ico" },
+    ],
+    shortcut: "/images/favicon.png",
+    apple: "/images/favicon.png",
   },
 };
 

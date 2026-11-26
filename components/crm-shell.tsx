@@ -40,7 +40,18 @@ export function CrmShell({ children }: { children: React.ReactNode }) {
     <div className="app-shell">
       <aside className={`sidebar ${sidebarOpen ? "open" : ""}`}>
         <Link href="/" className="sidebar-logo">
-          <span className="sidebar-logo-icon">N</span>
+          <img
+            src="/images/favicon.png"
+            alt="Nexora logo"
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: 9,
+              objectFit: "cover",
+              background: "#fff",
+              flexShrink: 0,
+            }}
+          />
           Nexora CRM
         </Link>
         <nav className="sidebar-nav">
