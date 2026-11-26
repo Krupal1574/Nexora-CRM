@@ -117,7 +117,26 @@ export async function ensureDefaultUsers(): Promise<void> {
         `SELECT COUNT(*)::int AS count FROM "CrmUser" WHERE "organizationId" = $1`,
         [DEFAULT_ORG_ID]
       );
-      if ((existing[0]?.count ?? 0) > 0) return;
+      const userCount = existing[0]?.count ?? 0;
+
+      // If users already exist, update their passwords from env vars
+      if (userCount > 0) {
+        const adminPassword = process.env.CRM_ADMIN_PASSWORD;
+        const teamPassword = process.env.CRM_TEAM_PASSWORD;
+        if (adminPassword) {
+          await query(
+            `UPDATE "CrmUser" SET "passwordHash" = $1, "updatedAt" = CURRENT_TIMESTAMP WHERE "email" = $2`,
+            [hashPassword(adminPassword), "support@nexorastaffingllp.com"]
+          );
+        }
+        if (teamPassword) {
+          await query(
+            `UPDATE "CrmUser" SET "passwordHash" = $1, "updatedAt" = CURRENT_TIMESTAMP WHERE "email" = ANY($2::text[])`,
+            [hashPassword(teamPassword), ["yatri@nexorastaffingllp.com", "priya@nexorastaffingllp.com", "rahul@nexorastaffingllp.com"]]
+          );
+        }
+        return;
+      }
 
       const adminPassword = process.env.CRM_ADMIN_PASSWORD || "Krupal@2921#6965";
       const teamPassword = process.env.CRM_TEAM_PASSWORD || "Nexora@2026";

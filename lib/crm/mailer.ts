@@ -2,8 +2,9 @@ import crypto from "node:crypto";
 import nodemailer from "nodemailer";
 import { DEFAULT_ORG_ID, ensureCrmSchema, query } from "@/lib/crm/db";
 
-export const SECURITY_ALERT_RECIPIENT =
-  process.env.SECURITY_ALERT_EMAIL || "support@nexorastaffingllp.com";
+export const SECURITY_ALERT_RECIPIENTS: string[] = (
+  process.env.ADMIN_EMAIL || process.env.SECURITY_ALERT_EMAIL || "support@nexorastaffingllp.com"
+).split(",").map(e => e.trim()).filter(Boolean);
 
 export type SecurityEventType =
   | "IMPORT"
@@ -38,6 +39,7 @@ function escapeHtml(s: string): string {
 
 async function dispatchEmail(subject: string, textBody: string, htmlBody: string): Promise<{ sent: boolean; status: string }> {
   const fromAddress =
+    process.env.EMAIL_FROM ||
     process.env.SMTP_FROM ||
     process.env.RESEND_FROM ||
     "Nexora CRM Security <noreply@nexorastaffingllp.com>";
@@ -54,7 +56,7 @@ async function dispatchEmail(subject: string, textBody: string, htmlBody: string
         },
         body: JSON.stringify({
           from: fromAddress,
-          to: [SECURITY_ALERT_RECIPIENT],
+          to: SECURITY_ALERT_RECIPIENTS,
           subject,
           text: textBody,
           html: htmlBody,
@@ -88,7 +90,7 @@ async function dispatchEmail(subject: string, textBody: string, htmlBody: string
       });
       await transporter.sendMail({
         from: fromAddress,
-        to: SECURITY_ALERT_RECIPIENT,
+        to: SECURITY_ALERT_RECIPIENTS.join(", "),
         subject,
         text: textBody,
         html: htmlBody,
@@ -155,7 +157,7 @@ export async function sendSecurityAlert(input: SecurityAlertInput): Promise<{
         </table>
       </div>
       <div style="background:#f5f1e8;color:#77736d;padding:10px 20px;font-size:12px;">
-        Sent to ${escapeHtml(SECURITY_ALERT_RECIPIENT)} • Nexora Staffing LLP
+        Sent to ${SECURITY_ALERT_RECIPIENTS.map(e => escapeHtml(e)).join(", ")} • Nexora Staffing LLP
       </div>
     </div>
   `;
